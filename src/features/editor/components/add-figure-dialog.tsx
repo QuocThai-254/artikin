@@ -8,6 +8,7 @@ import { headsTall } from "@/lib/mannequin/proportions";
 import { useReturnFocus } from "../hooks/use-return-focus";
 import { AddFigureImportEntry } from "../model-import/ui";
 import { useEditor, useEditorStore } from "../store/context";
+import { AddFigureMyPresets } from "./presets/add-figure-my-presets";
 
 /** Add figure (PROJECT F7): choose a body preset; refused politely at the 8-figure limit. */
 export function AddFigureDialog() {
@@ -18,7 +19,7 @@ export function AddFigureDialog() {
   const returnFocus = useReturnFocus(open);
   return (
     <Dialog open={open} onOpenChange={(o) => store.getState().setDialog(o ? "addFigure" : "none")}>
-      <DialogContent data-testid="add-figure-dialog" className="sm:max-w-xl" onCloseAutoFocus={returnFocus}>
+      <DialogContent data-testid="add-figure-dialog" className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl" onCloseAutoFocus={returnFocus}>
         <DialogHeader>
           <DialogTitle>Add figure</DialogTitle>
           <DialogDescription>
@@ -50,6 +51,7 @@ export function AddFigureDialog() {
             </Button>
           ))}
         </div>
+        <AddFigureMyPresets />
         <AddFigureImportEntry />
       </DialogContent>
     </Dialog>

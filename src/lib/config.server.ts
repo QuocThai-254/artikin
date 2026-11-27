@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import { DEFAULT_MAX_WORKSPACES_PER_USER } from "./config";
+import { DEFAULT_MAX_PRESETS_PER_USER, DEFAULT_MAX_WORKSPACES_PER_USER } from "./config";
 
 /**
  * Server-only settings read from environment variables (ARCHITECTURE §16.1).
@@ -15,11 +15,17 @@ const ServerEnvSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().min(1).max(1000).default(DEFAULT_MAX_WORKSPACES_PER_USER),
   ),
+  MAX_PRESETS_PER_USER: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(1000).default(DEFAULT_MAX_PRESETS_PER_USER),
+  ),
 });
 
 export interface ServerConfig {
   /** Workspace quota per user (`MAX_WORKSPACES_PER_USER`, default 5). */
   maxWorkspacesPerUser: number;
+  /** Personal figure preset quota per user (`MAX_PRESETS_PER_USER`, default 50). */
+  maxPresetsPerUser: number;
 }
 
 let cached: ServerConfig | undefined;
@@ -31,7 +37,10 @@ export function getServerConfig(): ServerConfig {
   if (!parsed.success) {
     throw new Error(`Invalid server environment: ${z.prettifyError(parsed.error)}`);
   }
-  cached = { maxWorkspacesPerUser: parsed.data.MAX_WORKSPACES_PER_USER };
+  cached = {
+    maxWorkspacesPerUser: parsed.data.MAX_WORKSPACES_PER_USER,
+    maxPresetsPerUser: parsed.data.MAX_PRESETS_PER_USER,
+  };
   return cached;
 }
 

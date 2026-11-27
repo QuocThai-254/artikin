@@ -78,13 +78,14 @@ export const API_ERROR_CODES = [
   "VALIDATION_ERROR",
   "PAYLOAD_TOO_LARGE",
   "WORKSPACE_LIMIT_REACHED",
+  "PRESET_LIMIT_REACHED",
   "CONFLICT",
   "INTERNAL",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
-/** Error response body of every workspace endpoint. */
+/** Error response body of every workspace and preset endpoint. */
 export interface ApiErrorBody {
   error: {
     code: ApiErrorCode;

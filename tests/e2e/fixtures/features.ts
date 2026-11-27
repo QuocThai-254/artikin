@@ -59,6 +59,10 @@ export const FEATURES = {
     built: true,
     task: "L-01 view lock: master lock = pose + lights + view, V, lock menu View, frozen camera (S2)",
   },
+  myPresets: {
+    built: true,
+    task: "F15 My presets: personal figure presets API, Mine tab, save dialog, Add figure group (S5)",
+  },
 } as const satisfies Record<string, { built: boolean; task: string }>;
 
 export type FeatureName = keyof typeof FEATURES;

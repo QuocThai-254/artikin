@@ -14,6 +14,7 @@ import { selectClass } from "./bone-picker";
 import { NumberField, SectionTitle, TextField } from "./fields";
 import { LabeledSlider } from "./labeled-slider";
 import { PoseActions } from "./bone-panel";
+import { SaveAsMyPresetButton } from "./presets/save-preset-dialog";
 
 const kebab = (key: string) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
@@ -171,6 +172,7 @@ export function FigurePanel({ mannequinId }: { mannequinId: string }) {
       )}
 
       <PoseActions mannequinId={mannequinId} editable={editable} />
+      <SaveAsMyPresetButton mannequinId={mannequinId} testId="figure-save-preset" className="self-start" />
     </section>
   );
 }

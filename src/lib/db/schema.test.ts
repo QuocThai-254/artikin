@@ -4,10 +4,11 @@ import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { getBodyPreset } from "@/lib/mannequin/presets/body";
 import { createDefaultScene, SCENE_VERSION } from "@/lib/scene";
 
 import { createDatabaseFromEnv } from "./client";
-import { user, workspace } from "./schema";
+import { figurePreset, user, workspace } from "./schema";
 import { createTestDb, type TestDatabase } from "./test-utils";
 
 async function insertUser(testDb: TestDatabase, id = "user_1") {
@@ -33,12 +34,36 @@ describe("database schema (in-memory PGlite)", () => {
     const tables = result.rows.map((row) => row.table_name);
     expect(tables).toEqual([
       "account",
+      "figure_preset",
       "rate_limit",
       "session",
       "user",
       "verification",
       "workspace",
     ]);
+  });
+
+  it("stores a figure preset as JSONB, rejects blank names and deletes it with its owner", async () => {
+    const userId = await insertUser(testDb);
+    const data = {
+      version: 1 as const,
+      body: {
+        presetId: "classic-wooden",
+        proportions: getBodyPreset("classic-wooden").proportions,
+        material: { style: "wood" as const, color: "#c8a27a" },
+      },
+    };
+    const [created] = await testDb.db
+      .insert(figurePreset)
+      .values({ userId, name: "Tall hero", data, dataVersion: data.version })
+      .returning();
+    expect(created?.data).toEqual(data);
+    await expect(
+      testDb.db.insert(figurePreset).values({ userId, name: "  ", data, dataVersion: 1 }),
+    ).rejects.toThrow();
+
+    await testDb.db.delete(user).where(eq(user.id, userId));
+    expect(await testDb.db.select().from(figurePreset)).toHaveLength(0);
   });
 
   it("stores a workspace scene as JSONB and deletes it with its owner", async () => {

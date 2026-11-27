@@ -12,7 +12,7 @@
 import { temporal } from "zundo";
 import { type StoreApi, createStore } from "zustand/vanilla";
 
-import { MAX_LIGHTS_PER_SCENE, MAX_MANNEQUINS_PER_SCENE } from "@/lib/config";
+import { MAX_LIGHTS_PER_SCENE, MAX_MANNEQUINS_PER_SCENE, FIGURE_NAME_MAX_LENGTH } from "@/lib/config";
 import { type HumanBoneName, type PosableBoneName } from "@/lib/mannequin/bones";
 import { groundedHipsHeight } from "@/lib/mannequin/figure-model";
 import {
@@ -28,6 +28,12 @@ import {
   swapSides,
 } from "@/lib/mannequin/pose-math";
 import { MATERIAL_DEFAULT_COLORS, getBodyPreset } from "@/lib/mannequin/presets/body";
+import {
+  type FigurePresetData,
+  parseFigurePresetData,
+  posePresetOfFigurePreset,
+  proportionOverridesOf,
+} from "@/lib/mannequin/presets/figure-preset";
 import { DEFAULT_POSE_PRESET } from "@/lib/mannequin/presets/pose";
 import type { HandPreset, PosePreset } from "@/lib/mannequin/presets/types";
 import { clampProportion } from "@/lib/mannequin/proportions";
@@ -180,8 +186,16 @@ export interface EditorState {
   swapSides: (mannequinId: string) => void;
   applyPosePreset: (mannequinId: string, preset: PosePreset) => void;
   applyHandPreset: (mannequinId: string, preset: HandPreset, side: Side | "both") => void;
+  /**
+   * Applies a personal figure preset (PROJECT F15) as one undo step: the body (base preset,
+   * proportions, material) unless the figure shows an imported model, and the pose when the preset
+   * has one — keeping the figure's floor position and heading, like `applyPosePreset`.
+   */
+  applyFigurePreset: (mannequinId: string, data: FigurePresetData) => FigurePresetApplyResult;
   // ── figures ────────────────────────────────────────────────────────────────────────────
   addMannequin: (presetId?: string) => string | null;
+  /** Adds a figure built from a personal preset (8-figure limit), named after it; returns its id. */
+  addFigureFromPreset: (data: FigurePresetData, name?: string) => string | null;
   duplicateMannequin: (mannequinId: string) => string | null;
   removeMannequin: (mannequinId: string) => void;
   renameMannequin: (mannequinId: string, name: string) => void;
@@ -228,6 +242,13 @@ export interface EditorState {
 }
 
 export type EditorDialog = "none" | "help" | "export" | "addFigure";
+
+/**
+ * Outcome of `applyFigurePreset`: everything applied; only the pose (the figure shows an imported
+ * model); nothing applicable (imported model, body-only preset); refused by the pose lock; or an
+ * unreadable preset / unknown figure.
+ */
+export type FigurePresetApplyResult = "applied" | "pose-only" | "not-applicable" | "locked" | "invalid";
 
 export type EditorStore = StoreApi<EditorState> & {
   temporal: StoreApi<{
@@ -288,6 +309,34 @@ function keepClearance(before: SceneMannequin, after: SceneMannequin): SceneMann
   const gap = before.transform.position[1] - groundedHipsHeight(figureModel(before), before.pose, before.transform.rotation);
   const y = groundedHipsHeight(figureModel(after), after.pose, after.transform.rotation) + Math.max(0, gap);
   return { ...after, transform: { ...after.transform, position: [after.transform.position[0], round(y), after.transform.position[2]] } };
+}
+
+/**
+ * A full-body pose preset on a figure: bones, hips orientation relative to the figure's heading,
+ * then grounded (default) or lifted to `hips.height` × the standing hips height. Floor x/z are kept.
+ */
+function withPosePreset(m: SceneMannequin, preset: PosePreset): SceneMannequin {
+  const pose = roundPose(applyPosePresetToPose(m.pose, preset));
+  const [pitch, yaw, roll] = preset.hips?.orientation ?? [0, 0, 0];
+  const heading = m.transform.rotation[1];
+  const rotation: Vec3 = [wrapDeg(pitch), wrapDeg(heading + yaw), wrapDeg(roll)];
+  const next: SceneMannequin = { ...m, pose, transform: { ...m.transform, rotation } };
+  if (preset.grounded ?? true) return groundMannequin(next);
+  const standing = groundedHipsHeight(figureModel(next), {}, [0, 0, 0]);
+  const y = standing * (preset.hips?.height ?? 1);
+  return { ...next, transform: { ...next.transform, position: [m.transform.position[0], round(y), m.transform.position[2]] } };
+}
+
+/** A personal preset's name for a new figure (40 characters), made unique with " 2", " 3", … */
+function figureNameFrom(existing: readonly string[], requested?: string): string {
+  const base = requested?.trim().slice(0, FIGURE_NAME_MAX_LENGTH).trim();
+  if (!base) return nextName(existing, "Figure");
+  if (!existing.includes(base)) return base;
+  for (let i = 2; ; i++) {
+    const suffix = ` ${i}`;
+    const name = `${base.slice(0, FIGURE_NAME_MAX_LENGTH - suffix.length).trimEnd()}${suffix}`;
+    if (!existing.includes(name)) return name;
+  }
 }
 
 const round = (v: number, digits = 4) => {
@@ -488,19 +537,29 @@ export function createEditorStore(init: { document?: unknown; persistence?: Part
           },
           applyPosePreset: (id, preset) => {
             if (!guardPose(id)) return;
-            updateMannequin(id, (m) => {
-              const pose = roundPose(applyPosePresetToPose(m.pose, preset));
-              const [pitch, yaw, roll] = preset.hips?.orientation ?? [0, 0, 0];
-              const heading = m.transform.rotation[1];
-              const rotation: Vec3 = [wrapDeg(pitch), wrapDeg(heading + yaw), wrapDeg(roll)];
-              const next: SceneMannequin = { ...m, pose, transform: { ...m.transform, rotation } };
-              if (preset.grounded ?? true) return groundMannequin(next);
-              const standing = groundedHipsHeight(figureModel(next), {}, [0, 0, 0]);
-              const y = standing * (preset.hips?.height ?? 1);
-              return { ...next, transform: { ...next.transform, position: [m.transform.position[0], round(y), m.transform.position[2]] } };
-            });
+            updateMannequin(id, (m) => withPosePreset(m, preset));
           },
           applyHandPreset: (id, preset, side) => editPose(id, (pose) => applyHandPresetToPose(pose, preset, side)),
+          applyFigurePreset: (id, input) => {
+            const parsed = parseFigurePresetData(input, { mode: "read" });
+            const figure = get().scene.mannequins.find((m) => m.id === id);
+            if (!parsed.ok) notify("This preset can't be applied — it is damaged", "warning");
+            if (!parsed.ok || !figure) return "invalid";
+            const data = parsed.data;
+            // An imported model keeps its own body (like the body presets); only a pose applies.
+            const bodyApplies = !figure.model;
+            if (!bodyApplies && !data.pose) return "not-applicable";
+            if (!guardPose(id)) return "locked";
+            const posePreset = posePresetOfFigurePreset("figure-preset", "Figure preset", data);
+            updateMannequin(id, (m) => {
+              const shaped: SceneMannequin = bodyApplies
+                ? { ...m, presetId: data.body.presetId, proportions: proportionOverridesOf(data.body), material: { ...data.body.material } }
+                : m;
+              const next = posePreset ? withPosePreset(shaped, posePreset) : keepClearance(m, shaped);
+              return JSON.stringify(next) === JSON.stringify(m) ? m : next;
+            });
+            return bodyApplies ? "applied" : "pose-only";
+          },
 
           addMannequin: (presetId) => {
             const { scene } = get();
@@ -521,6 +580,35 @@ export function createEditorStore(init: { document?: unknown; persistence?: Part
               locked: false,
               visible: true,
             });
+            set({ scene: { ...scene, mannequins: [...scene.mannequins, figure] }, selection: { kind: "mannequin", mannequinId: id } });
+            return id;
+          },
+          addFigureFromPreset: (input, name) => {
+            const parsed = parseFigurePresetData(input, { mode: "read" });
+            if (!parsed.ok) {
+              notify("This preset can't be used — it is damaged", "warning");
+              return null;
+            }
+            const { scene } = get();
+            if (scene.mannequins.length >= MAX_MANNEQUINS_PER_SCENE) {
+              notify(`A scene can hold up to ${MAX_MANNEQUINS_PER_SCENE} figures`, "warning");
+              return null;
+            }
+            const data = parsed.data;
+            const id = createSceneObjectId("fig", [...scene.mannequins.map((m) => m.id), ...scene.lights.map((l) => l.id)]);
+            const base: SceneMannequin = {
+              id,
+              name: figureNameFrom(scene.mannequins.map((m) => m.name), name),
+              presetId: data.body.presetId,
+              proportions: proportionOverridesOf(data.body),
+              material: { ...data.body.material },
+              transform: { position: [freeSlotX(scene.mannequins), 1, 0], rotation: [0, 0, 0] },
+              pose: roundPose(applyPosePresetToPose({}, DEFAULT_POSE_PRESET)),
+              locked: false,
+              visible: true,
+            };
+            const posePreset = posePresetOfFigurePreset("figure-preset", "Figure preset", data);
+            const figure = posePreset ? withPosePreset(base, posePreset) : groundMannequin(base);
             set({ scene: { ...scene, mannequins: [...scene.mannequins, figure] }, selection: { kind: "mannequin", mannequinId: id } });
             return id;
           },

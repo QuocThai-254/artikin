@@ -73,6 +73,21 @@ export class WorkspaceLimitError extends AppError {
   }
 }
 
+/** The personal figure preset quota ("My presets", `MAX_PRESETS_PER_USER`). */
+export class PresetLimitError extends AppError {
+  readonly limit: number;
+
+  constructor(limit: number, count: number) {
+    super(
+      "PRESET_LIMIT_REACHED",
+      409,
+      `You can have up to ${limit} presets. Delete one to save another.`,
+      { limit, count },
+    );
+    this.limit = limit;
+  }
+}
+
 /** Optimistic-concurrency failure; `details.updatedAt` is the current token. */
 export class WorkspaceConflictError extends AppError {
   readonly updatedAt: string;

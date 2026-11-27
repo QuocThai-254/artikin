@@ -14,6 +14,7 @@ import { useEditor, useEditorStore } from "../../store/context";
 import { canEditPose } from "../../store/guards";
 import { useActiveMannequinId } from "../bone-picker";
 import { SectionTitle } from "../fields";
+import { MyPresetsTab } from "./my-presets-tab";
 import { PresetPreview } from "./preset-preview";
 import { bodyPreview, handPreview, posePreview } from "./preview-shapes";
 
@@ -38,7 +39,8 @@ const PREVIEW_BOX = "size-auto w-full rounded-md bg-muted text-foreground/85";
  * Applying a preset is one undo step (store actions); everything is disabled while the figure's
  * pose is locked (PROJECT §10). Body presets only shape the procedural mannequin, so they are
  * disabled (with a hint) while the figure shows an imported model (`model` set, S8); pose and
- * hand presets drive the skeleton and keep working. Test ids: TEST_PLAN §6.2.
+ * hand presets drive the skeleton and keep working. "Mine" holds the user's personal presets
+ * (PROJECT F15, `my-presets-tab.tsx`). Test ids: TEST_PLAN §6.2.
  */
 export function PresetsPanel() {
   const store = useEditorStore();
@@ -70,6 +72,9 @@ export function PresetsPanel() {
           </TabsTrigger>
           <TabsTrigger value="body" data-testid="presets-tab-body">
             Body
+          </TabsTrigger>
+          <TabsTrigger value="mine" data-testid="presets-tab-mine">
+            Mine
           </TabsTrigger>
         </TabsList>
 
@@ -158,6 +163,10 @@ export function PresetsPanel() {
               </Button>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="mine" className="flex flex-col gap-2">
+          <MyPresetsTab mannequinId={mannequinId} editable={editable} />
         </TabsContent>
       </Tabs>
     </section>

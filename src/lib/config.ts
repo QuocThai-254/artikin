@@ -30,6 +30,18 @@ export const FIGURE_NAME_MAX_LENGTH = 40;
 /** Light names: 1–40 characters after trimming. */
 export const LIGHT_NAME_MAX_LENGTH = 40;
 
+/**
+ * Default number of personal figure presets ("My presets", PROJECT F15) per user. The effective
+ * value is `getServerConfig().maxPresetsPerUser` (`MAX_PRESETS_PER_USER`).
+ */
+export const DEFAULT_MAX_PRESETS_PER_USER = 50;
+
+/** Figure preset names: 1–60 characters after trimming. */
+export const FIGURE_PRESET_NAME_MAX_LENGTH = 60;
+
+/** Maximum serialized (UTF-8 JSON) size of a normalized figure preset document, in bytes. */
+export const MAX_FIGURE_PRESET_BYTES = 16 * 1024;
+
 /** All limits grouped, e.g. for passing to UI components. */
 export const LIMITS = {
   defaultMaxWorkspacesPerUser: DEFAULT_MAX_WORKSPACES_PER_USER,
@@ -40,4 +52,7 @@ export const LIMITS = {
   workspaceNameMaxLength: WORKSPACE_NAME_MAX_LENGTH,
   figureNameMaxLength: FIGURE_NAME_MAX_LENGTH,
   lightNameMaxLength: LIGHT_NAME_MAX_LENGTH,
+  defaultMaxPresetsPerUser: DEFAULT_MAX_PRESETS_PER_USER,
+  figurePresetNameMaxLength: FIGURE_PRESET_NAME_MAX_LENGTH,
+  maxFigurePresetBytes: MAX_FIGURE_PRESET_BYTES,
 } as const;
