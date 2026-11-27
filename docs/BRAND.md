@@ -74,7 +74,9 @@ screen readers get "."); H2 `clamp(2.3rem, 5vw, 3.6rem)`/1.02; body 15–20 px, 
 
 Procedural 2D mannequin (`docs/brand/generator/scripts/mannequin.mjs`): forward kinematics → shaded
 capsule limbs, ball joints, 3-phalanx fingers, faceless egg head, cool rim light, projected cast
-shadow. Materials: **wood** (soft gradients) and **toon** (2-tone cel steps + ink outline).
+shadow. Materials: **wood** (soft gradients) and **toon** (2-tone cel steps + ink outline). The
+illustrations keep the faceless egg head on purpose (a simple emblem); the editor's 3D figures have
+sculpted faces since 2026-11-27 (PROJECT §8.1, ARCHITECTURE ADR-061).
 
 - `public/brand/hero-mannequin.svg` — "reaching toward the light" (Fig. 1): the final hero art, kept
   over raw editor renders (supervisor decision, 2026-11-26); real editor screenshots may get an

@@ -7,7 +7,8 @@
  * - anime teens and young adults get long legs (crotch ≈ 49–53 %), slim limbs, narrow waists and
  *   smaller hands and feet; men read through the shoulder-to-waist taper, women through a narrow
  *   waist with hips close to shoulder width.
- * Faces stay featureless (egg head) for every preset; no hair, clothing or gear.
+ * Each preset has its own sculpted face style (eye sockets, nose, closed lips — `mesh/face.ts`,
+ * ADR-061); no hair, clothing or gear.
  */
 
 import { type BodyProportions, DEFAULT_PROPORTIONS } from "../proportions";
@@ -27,7 +28,7 @@ export const BODY_PRESETS: readonly BodyPreset[] = [
   {
     id: "classic-wooden",
     name: "Classic Wooden",
-    description: "Idealized neutral artist's manikin with a faceless egg head and visible ball joints.",
+    description: "Idealized neutral artist's manikin with a simple carved face and visible ball joints.",
     proportions: p({ height: 1.75, headSize: 1 / 7.5, waist: 0.96, hipWidth: 0.98, muscularity: 0.3 }),
     material: { style: "wood", color: MATERIAL_DEFAULT_COLORS.wood },
   },

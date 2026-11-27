@@ -139,6 +139,11 @@ const TOON_FRAGMENT = [
   "  float artikinDepth = 0.5 + 0.35 * clamp(artikinAmbient / 1.6, 0.0, 1.0);",
   "  vec3 artikinShade = mix(pow(artikinAlbedo, vec3(1.35)), artikinAlbedo, 0.35) * artikinDepth;",
   "  outgoingLight = mix(artikinShade, artikinAlbedo * artikinHue, artikinLit);",
+  // Face cavities (lid crease, under the nose, lip line) take the shadow tone whatever the light, a
+  // little deeper inside shadow, so the features read like drawn shapes (mesh/face.ts `cavity`).
+  "  float artikinCavityEdge = max(fwidth(vArtikinCavity), 1e-3);",
+  "  float artikinCavity = smoothstep(0.5 - artikinCavityEdge, 0.5 + artikinCavityEdge, vArtikinCavity);",
+  "  outgoingLight = mix(outgoingLight, artikinShade * mix(0.8, 1.0, artikinLit), artikinCavity);",
   "}",
 ].join("\n");
 
@@ -155,12 +160,17 @@ function injectShading(material: THREE.Material, uniforms: HighlightUniforms, to
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
-        "#include <common>\nuniform float uSelectedBone;\nuniform float uHoverBone;\nuniform float uSelectAll;\nvarying float vArtikinHighlight;",
+        "#include <common>\nuniform float uSelectedBone;\nuniform float uHoverBone;\nuniform float uSelectAll;\nvarying float vArtikinHighlight;" +
+          (toon ? "\nattribute vec3 toonNormal;\nattribute float toonCavity;\nvarying float vArtikinCavity;" : ""),
       )
+      // Cel shading lights the face's broad forms so the terminator stays clean; the geometry, the
+      // outline and cast shadows keep every feature (mesh/head.ts).
+      .replace("#include <beginnormal_vertex>", toon ? "#include <beginnormal_vertex>\nobjectNormal = toonNormal;" : "#include <beginnormal_vertex>")
       .replace(
         "#include <skinning_vertex>",
         [
           "#include <skinning_vertex>",
+          toon ? "vArtikinCavity = toonCavity;" : "",
           "#ifdef USE_SKINNING",
           "  float artikinBone = skinIndex.x;",
           "  vArtikinHighlight = abs(artikinBone - uSelectedBone) < 0.5 ? 1.0 : (abs(artikinBone - uHoverBone) < 0.5 ? 0.6 : (uSelectAll > 0.5 ? 0.3 : 0.0));",
@@ -173,7 +183,7 @@ function injectShading(material: THREE.Material, uniforms: HighlightUniforms, to
       .replace(
         "#include <common>",
         "#include <common>\nuniform vec3 uHighlightColor;\nuniform vec3 uHoverColor;\nvarying float vArtikinHighlight;" +
-          (toon ? "\nuniform float uToonThreshold;" : ""),
+          (toon ? "\nuniform float uToonThreshold;\nvarying float vArtikinCavity;" : ""),
       )
       .replace(
         "#include <opaque_fragment>",
@@ -194,7 +204,7 @@ function injectShading(material: THREE.Material, uniforms: HighlightUniforms, to
         ].join("\n"),
       );
   };
-  material.customProgramCacheKey = () => (toon ? "artikin-shading-v7-toon" : "artikin-shading-v7");
+  material.customProgramCacheKey = () => (toon ? "artikin-shading-v9-toon" : "artikin-shading-v7");
 }
 
 export function createFigureMaterial(style: MaterialStyle, color: string, uniforms: HighlightUniforms): THREE.Material {

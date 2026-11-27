@@ -20,13 +20,17 @@ export interface MeshPart {
   normals: number[];
   uvs: number[];
   indices: number[];
+  /** Normals for cel (toon) shading when they differ from the true ones (see `head.ts`). */
+  shadeNormals?: number[];
+  /** Per-vertex cavity that cel shading draws in its shadow tone (0 … 1; see `head.ts`). */
+  cavity?: number[];
 }
 
 export type SurfaceFn = (u: number, v: number) => Vec3;
 
 const EPS = 1e-4;
 
-function surfaceNormal(fn: SurfaceFn, u: number, v: number): Vec3 {
+export function surfaceNormal(fn: SurfaceFn, u: number, v: number): Vec3 {
   const v0 = Math.max(0, v - EPS);
   const v1 = Math.min(1, v + EPS);
   const du = vecSub(fn(u + EPS, v), fn(u - EPS, v));
@@ -47,14 +51,22 @@ function surfaceNormal(fn: SurfaceFn, u: number, v: number): Vec3 {
 }
 
 export function parametricSurface(fn: SurfaceFn, uSegs: number, vSegs: number): MeshPart {
+  const us = Array.from({ length: uSegs + 1 }, (_, i) => i / uSegs);
+  const vs = Array.from({ length: vSegs + 1 }, (_, j) => j / vSegs);
+  return parametricGrid(fn, us, vs);
+}
+
+/**
+ * Surface sampled on explicit, ascending parameter values (non-uniform grids put vertices where the
+ * detail is). UVs are the parameters themselves, so textures keep the surface's own mapping.
+ */
+export function parametricGrid(fn: SurfaceFn, us: readonly number[], vs: readonly number[]): MeshPart {
   const positions: number[] = [];
   const normals: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
-  for (let j = 0; j <= vSegs; j++) {
-    const v = j / vSegs;
-    for (let i = 0; i <= uSegs; i++) {
-      const u = i / uSegs;
+  for (const v of vs) {
+    for (const u of us) {
       const p = fn(u, v);
       const n = surfaceNormal(fn, u, v);
       positions.push(p[0], p[1], p[2]);
@@ -62,9 +74,9 @@ export function parametricSurface(fn: SurfaceFn, uSegs: number, vSegs: number): 
       uvs.push(u, v);
     }
   }
-  const row = uSegs + 1;
-  for (let j = 0; j < vSegs; j++) {
-    for (let i = 0; i < uSegs; i++) {
+  const row = us.length;
+  for (let j = 0; j < vs.length - 1; j++) {
+    for (let i = 0; i < row - 1; i++) {
       const a = j * row + i;
       const b = a + 1;
       const d = a + row;
@@ -75,9 +87,89 @@ export function parametricSurface(fn: SurfaceFn, uSegs: number, vSegs: number): 
   return { positions, normals, uvs, indices };
 }
 
+/**
+ * `count + 1` ascending samples of [a, b] (both ends included) spaced inversely to `density`:
+ * twice the density gives half the spacing.
+ */
+export function densitySamples(density: (t: number) => number, a: number, b: number, count: number, resolution = 2048): number[] {
+  const ts: number[] = [];
+  const cum: number[] = [0];
+  for (let k = 0; k <= resolution; k++) ts.push(a + ((b - a) * k) / resolution);
+  for (let k = 1; k <= resolution; k++) {
+    const w = (Math.max(1e-6, density(ts[k - 1])) + Math.max(1e-6, density(ts[k]))) / 2;
+    cum.push(cum[k - 1] + w * (ts[k] - ts[k - 1]));
+  }
+  const total = cum[resolution];
+  const out: number[] = [a];
+  let k = 0;
+  for (let i = 1; i < count; i++) {
+    const target = (total * i) / count;
+    while (cum[k + 1] < target) k++;
+    const span = cum[k + 1] - cum[k] || 1;
+    out.push(ts[k] + ((target - cum[k]) / span) * (ts[k + 1] - ts[k]));
+  }
+  out.push(b);
+  return out;
+}
+
+/**
+ * Shading normals of a closed grid surface from its own vertices (central differences between
+ * neighbours): consistent with the triangles, so relief finer than the grid cannot alias into
+ * speckles. `positions` is row-major with `cols` columns (the last column repeats the first, as
+ * `parametricGrid` builds a periodic u) and `rows` rows from the bottom pole to the top pole.
+ */
+export function gridNormals(positions: readonly number[], cols: number, rows: number): number[] {
+  const at = (i: number, j: number): Vec3 => {
+    const k = 3 * (j * cols + i);
+    return [positions[k], positions[k + 1], positions[k + 2]];
+  };
+  const normals: number[] = new Array<number>(positions.length).fill(0);
+  const set = (i: number, j: number, n: Vec3) => {
+    const k = 3 * (j * cols + i);
+    normals[k] = n[0];
+    normals[k + 1] = n[1];
+    normals[k + 2] = n[2];
+  };
+  for (let j = 1; j < rows - 1; j++) {
+    for (let i = 0; i < cols; i++) {
+      const prev = i === 0 ? cols - 2 : i - 1;
+      const next = i === cols - 1 ? 1 : i + 1;
+      const du = vecSub(at(next, j), at(prev, j));
+      const dv = vecSub(at(i, j + 1), at(i, j - 1));
+      set(i, j, vecNormalize(vecCross(dv, du)));
+    }
+  }
+  // Poles: one shared normal, the average of the next ring's.
+  for (const [pole, ring] of [
+    [0, 1],
+    [rows - 1, rows - 2],
+  ] as const) {
+    let acc: Vec3 = [0, 0, 0];
+    for (let i = 0; i < cols - 1; i++) {
+      const k = 3 * (ring * cols + i);
+      acc = vecAdd(acc, [normals[k], normals[k + 1], normals[k + 2]]);
+    }
+    const n = vecNormalize(acc);
+    for (let i = 0; i < cols; i++) set(i, pole, n);
+  }
+  return normals;
+}
+
 /** sign(x)·|x|^p — superellipse helper. */
 export function spow(x: number, p: number): number {
   return Math.sign(x) * Math.abs(x) ** p;
+}
+
+/** Hermite smoothstep from 0 (t ≤ a) to 1 (t ≥ b), flat at both ends. */
+export function smoothstep(a: number, b: number, t: number): number {
+  const k = Math.min(1, Math.max(0, (t - a) / (b - a)));
+  return k * k * (3 - 2 * k);
+}
+
+/** Smooth bump centred at c with half-width w (0 outside). */
+export function bump(t: number, c: number, w: number): number {
+  const x = (t - c) / w;
+  return Math.abs(x) >= 1 ? 0 : 0.5 * (1 + Math.cos(Math.PI * x));
 }
 
 // ── Profiles (radius as a function of height) ─────────────────────────────────────────────
@@ -205,8 +297,13 @@ export interface RevolveOptions {
 
 /** Surface of revolution around local +Y with a (super)elliptic, possibly offset cross-section. */
 export function revolve(profile: Profile, opts: RevolveOptions = {}): MeshPart {
-  const { scale = [1, 1], exponent = 2, offset, uSegs = 20, vSegs = 16 } = opts;
-  const fn: SurfaceFn = (u, v) => {
+  return parametricSurface(revolveFn(profile, opts), opts.uSegs ?? 20, opts.vSegs ?? 16);
+}
+
+/** The parametrisation behind `revolve` (u around from +X towards +Z, v from bottom to top). */
+export function revolveFn(profile: Profile, opts: Omit<RevolveOptions, "uSegs" | "vSegs"> = {}): SurfaceFn {
+  const { scale = [1, 1], exponent = 2, offset } = opts;
+  return (u, v) => {
     const t = profile.t(v);
     const r = profile.r(v);
     const y = profile.y(v);
@@ -217,7 +314,6 @@ export function revolve(profile: Profile, opts: RevolveOptions = {}): MeshPart {
     const [ox, oz] = offset ? offset(t) : [0, 0];
     return [r * sx * spow(Math.cos(phi), p) + ox, y, r * sz * spow(Math.sin(phi), p) + oz];
   };
-  return parametricSurface(fn, uSegs, vSegs);
 }
 
 /** Superellipsoid centred at the origin with half extents [a, b, c] (x, y, z). */
@@ -259,13 +355,20 @@ export function capsule(radius: number, length: number, endRadius = radius, uSeg
 export function transformPart(part: MeshPart, rotation: Readonly<Quat>, position: Readonly<Vec3>): MeshPart {
   const positions: number[] = [];
   const normals: number[] = [];
+  const rotate = (source: readonly number[], target: number[]) => {
+    for (let i = 0; i < source.length; i += 3) {
+      const n = quatRotateVec3(rotation, [source[i], source[i + 1], source[i + 2]]);
+      target.push(n[0], n[1], n[2]);
+    }
+  };
   for (let i = 0; i < part.positions.length; i += 3) {
     const p = quatRotateVec3(rotation, [part.positions[i], part.positions[i + 1], part.positions[i + 2]]);
-    const n = quatRotateVec3(rotation, [part.normals[i], part.normals[i + 1], part.normals[i + 2]]);
     positions.push(p[0] + position[0], p[1] + position[1], p[2] + position[2]);
-    normals.push(n[0], n[1], n[2]);
   }
-  return { positions, normals, uvs: part.uvs, indices: part.indices };
+  rotate(part.normals, normals);
+  const placed: MeshPart = { positions, normals, uvs: part.uvs, indices: part.indices, cavity: part.cavity };
+  if (part.shadeNormals) rotate(part.shadeNormals, (placed.shadeNormals = []));
+  return placed;
 }
 
 export function translatePart(part: MeshPart, offset: Readonly<Vec3>): MeshPart {

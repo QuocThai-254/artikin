@@ -29,6 +29,9 @@ export function acquireGeometry(model: FigureModel): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(g.positions, 3));
   geometry.setAttribute("normal", new THREE.BufferAttribute(g.normals, 3));
+  // Cel-shading normals (the toon material reads them instead of `normal`; see materials.ts).
+  geometry.setAttribute("toonNormal", new THREE.BufferAttribute(g.toonNormals ?? g.normals, 3));
+  geometry.setAttribute("toonCavity", new THREE.BufferAttribute(g.toonCavity ?? new Float32Array(g.vertexCount), 1));
   geometry.setAttribute("uv", new THREE.BufferAttribute(g.uvs, 2));
   geometry.setAttribute("color", new THREE.BufferAttribute(g.colors, 3));
   const skinIndex = new Uint16Array(g.vertexCount * 4);
@@ -168,14 +171,22 @@ export function boneFromFace(geometry: THREE.BufferGeometry, faceVertex: number)
   return HUMAN_BONE_NAMES[idx] ?? null;
 }
 
-/** Outline (inverted hull) whose thickness is constant in screen pixels. */
+/**
+ * Outline (inverted hull) whose thickness is constant in screen pixels. Inside the face, creases that
+ * the cel shading smooths over (lid creases, the lip line: where `toonNormal` differs from the true
+ * normal and still faces the camera) get no hull offset, so they draw no stray strokes; silhouettes,
+ * the nose and the rest of the body keep the full outline.
+ */
 export function createOutlineMaterial(color: string, px: number, viewport: { value: THREE.Vector2 }): THREE.Material {
   const material = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, toneMapped: false });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uOutlinePx = { value: px };
     shader.uniforms.uViewport = viewport;
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nuniform float uOutlinePx;\nuniform vec2 uViewport;")
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform float uOutlinePx;\nuniform vec2 uViewport;\nattribute vec3 toonNormal;",
+      )
       .replace(
         "#include <project_vertex>",
         [
@@ -183,11 +194,16 @@ export function createOutlineMaterial(color: string, px: number, viewport: { val
           "#ifdef USE_SKINNING",
           "  vec4 artikinClipN = projectionMatrix * modelViewMatrix * vec4(objectNormal, 0.0);",
           "  vec2 artikinDir = length(artikinClipN.xy) > 1e-6 ? normalize(artikinClipN.xy) : vec2(0.0);",
-          "  gl_Position.xy += artikinDir * uOutlinePx / max(uViewport, vec2(1.0)) * gl_Position.w * 2.0;",
+          "  vec3 artikinToonN = normalize((skinMatrix * vec4(toonNormal, 0.0)).xyz);",
+          "  float artikinFacing = dot(normalize((modelViewMatrix * vec4(artikinToonN, 0.0)).xyz), normalize(-mvPosition.xyz));",
+          "  float artikinCrease = smoothstep(0.01, 0.06, 1.0 - dot(normalize(objectNormal), artikinToonN));",
+          "  float artikinInner = smoothstep(0.0, 0.3, artikinFacing) * artikinCrease;",
+          "  gl_Position.xy += artikinDir * (1.0 - artikinInner) * uOutlinePx / max(uViewport, vec2(1.0)) * gl_Position.w * 2.0;",
+          "  gl_Position.z += artikinInner * 1e-4 * gl_Position.w;",
           "#endif",
         ].join("\n"),
       );
   };
-  material.customProgramCacheKey = () => "artikin-outline-v1";
+  material.customProgramCacheKey = () => "artikin-outline-v2";
   return material;
 }

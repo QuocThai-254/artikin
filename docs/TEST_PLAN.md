@@ -66,7 +66,7 @@
 | F1-AC1 | Every bone of §7 can be selected and rotated | P0 | MAN-01, MAN-03, MAN-04, POSE-01, POSE-06, A11Y-03 |
 | F1-AC2 | No input path exceeds ROM limits (gizmo, IK, slider, numeric input, presets, mirror, loaded data clamped) | P0 | MAN-02, MAN-05…MAN-12, POSE-03…POSE-05, PRE-02, GUEST-03 |
 | F1-AC3 | Body preset / proportion change never changes stored pose angles | P0 | MAN-13, MAN-14 |
-| F1-R | 51 VRM bones, faceless figure, mirrored L/R limits, semantic encoding | P0 | MAN-01, MAN-02, MAN-15, VIS-01 |
+| F1-R | 51 VRM bones, sculpted face per body preset (ADR-061), mirrored L/R limits, semantic encoding | P0 | MAN-01, MAN-02, MAN-15, MAN-16…22, VIS-01, VIS-09 |
 | F2-AC1 | Switching preset keeps the pose; sliders update live (no reload) | P0 | MAN-14, BODY-03, BODY-04 |
 | F2-AC2 | Figure stays on the floor after a preset/proportion change | P0 | BODY-05 |
 | F2-AC3 | Generic presets only — no copyrighted names or likenesses | P0 | BODY-06, IP-01, IP-02 |
@@ -211,6 +211,13 @@ the Phase B run reports; IDs here are the contract.
 | MAN-13 | F1-AC3 | U | P0 | Posed figure in the store | `setBodyPreset`, `setProportions`, `setMaterial` | `pose` deep-equals the previous pose | store (S2) |
 | MAN-14 | F1-AC3, F2-AC1 | E | P0 | Guest editor, figure posed via sliders | Switch `figure-preset-select`; move `proportion-slider-height` and `proportion-slider-arm-length` | `pose` unchanged; `presetId` / `proportions` changed; no page reload (a `window` marker survives) | `figure-preset-select`, `proportion-slider-*` (S2) |
 | MAN-15 | F1-R | U | P0 | — | Semantic tests (ARCHITECTURE §9.2) | Left knee flexion moves the ankle to −Z; left shoulder abduction moves the wrist to +X and up; neck twist + turns the face to +X; elbow flexion moves the wrist forward/up; `mirror(mirror(p)) = p` | `rom.ts` (S2) |
+| MAN-16 | F1-R | U | P0 | — | Map every body preset to a face style; build one preset's proportions with two presets | Every PROJECT §8.1 preset has its own style, unknown ids get the neutral face; equal proportions + different presets → equal skeleton, different model key and head (custom proportions keep their preset's face) | `mesh/face.ts`, `figure-model.ts` (S2) |
+| MAN-17 | F1-R | U | P0 | — | Compare the male and female styles (realistic, anime teen, anime young adult); check feature order | Male: brow > 2× heavier and straighter, deeper sockets, nose ≥ 1.5× the projection, wider with fuller wings, wider mouth, squarer and wider chin; female: arched brow, taller eye areas (> 1.3×), upturned nose, cupid's bow, fuller lips, tapered jaw; mouth line → nose base → eye line ordered above the chin; sockets never reach the centreline | `mesh/face.ts` (S2) |
+| MAN-18 | F1-R | U | P0 | — | Every preset's head part: pair each vertex with its mirror column | Mirror vertex at (−x, y, z) for every vertex (exact symmetry) | `mesh/head.ts` (S2) |
+| MAN-19 | F1-R | U | P0 | — | Find the head part's most forward vertex | It is on the centreline at the nose tip (between the nose base and the tip height), ≥ 0.6 × the style's projection in front of the plain egg | `mesh/head.ts` (S2) |
+| MAN-20 | F1-R | U | P0 | — | Compare socket vertices with the plain egg at the same surface parameters | Recessed by > 0.4 × the style's socket depth, equally on both sides | `mesh/head.ts` (S2) |
+| MAN-21 | F1-R | U | P0 | — | Sample the relief on the centreline around the mouth line | Upper and lower lip stand out from the line between them; the mouth sits between the chin and the nose base | `mesh/face.ts` (S2) |
+| MAN-22 | F1-R, PERF | U | P0 | — | Every preset: bone indices of the head part, mesh size, a larger `headSize`, `toonNormals`, `toonCavity` | All face vertices on `head`; ≤ 1.15 × the faceless 28,496 triangles (32,552 measured) and < 30,000 vertices; the face scales with the head; toon normals are unit length, equal to the normals off the head; cavities in 0…1, only on the head, marking the lid creases, nostrils and lip line (< 8 % of the head) | `mesh/face.test.ts` (S2) |
 
 ### 4.2 Body presets, proportions & materials — F2 (BODY)
 
@@ -566,7 +573,7 @@ Captured with the §3 settings (WARP, 1280×800, DSF 1) by the opt-in `visual` p
 
 | ID | Subject | Owner | Folder |
 |---|---|---|---|
-| VIS-01 | Default figure front / side / back / ¾ (faceless egg head, ball joints, 3-phalanx fingers) | S2 | `engine/` |
+| VIS-01 | Default figure front / side / back / ¾ (egg head with the neutral carved face, ball joints, 3-phalanx fingers) | S2 | `engine/` |
 | VIS-02 | Each material (wood, clay, toon + outline, plaster); body presets side by side | S2, S5 | `engine/`, `presets/` |
 | VIS-03 | Lighting: intensity 0 / 50 / 100 %, shadows on/off, ambient 0 / 100 %, 4 lights | S2 | `engine/` |
 | VIS-04 | Every pose and hand preset | S5 | `presets/` |
@@ -574,6 +581,7 @@ Captured with the §3 settings (WARP, 1280×800, DSF 1) by the opt-in `visual` p
 | VIS-06 | Dashboard empty / 3 of 5 / 5 of 5; auth errors; dialogs | S3 | `auth/` |
 | VIS-07 | Landing desktop + mobile; OG image | S7 | `landing/` |
 | VIS-08 | Journeys J1–J3 key frames (captured by `editor/journeys.spec.ts`); responsive pages (A11Y-07); conflict and replace dialogs; save states | S6 | `qa/journeys/`, `qa/responsive/` (`E2E_VISUAL=1`) |
+| VIS-09 | Sculpted faces: all 9 body presets front / ¾ / profile under one bulb; face × material (wood, clay, plaster, toon) | S2 | `faces/` |
 
 ### 4.20 Compliance — AGENTS.md "Compliance & safety" (CMP, task Q-09)
 
@@ -1001,3 +1009,4 @@ Each gate also requires `npm run verify` green and the owner's own U/C/I cases f
 | 2026-11-26 | S6 | G6 additions: §6.1 `window.__artikinModelImport` hook, §6.2 `add-figure-local-models` |
 | 2026-11-27 | Supervisor | CMP-02 workplace markers moved out of the repository (base64 is readable by anyone once the repository is public): `denylists.ts` loads them from the git-ignored `tests/e2e/fixtures/workplace-denylist.local.json`; the run annotation reports whether the local list is present. Checks unchanged on the owner's machine |
 | 2026-11-26 | S6 | CMP-02 local paths now fail in documents too (supervisor, after neutralizing AGENTS.md / PROJECT.md): any drive-letter path outside test sources, user-profile paths and the local account name (read at run time, never stored) in every committable file. Compliance inventories skip entries that vanish mid-scan (other sessions' editors save via temp file + rename): under simulated churn the old walk failed 18/300 times with `ENOENT`, the hardened specs passed 12/12 twice |
+| 2026-11-27 | S2 | **Sculpted faces (owner request, PROJECT A12, ADR-061; S2 task FACE-01):** F1-R now covers the face; new unit tests MAN-16…22 (`src/lib/mannequin/mesh/face.test.ts`: preset → face style, male/female differences, symmetry, nose tip most forward, recessed sockets, lips between nose and chin, rigid skinning, triangle budget, head-size scaling, toon normals and cavities); VIS-01 wording; new VIS-09 (`docs/screenshots/faces/`). No new `data-testid`s and no E2E changes (the face is geometry only) |

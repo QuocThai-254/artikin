@@ -8,7 +8,7 @@ images are cropped to the 3D canvas; all use the default lighting (key bulb at `
 | File | Shows | Test ids |
 |---|---|---|
 | `00` | Default view of a new scene: whole figure head-to-toe and the key bulb (grab it without zooming out) | — |
-| `01`–`04` | Default faceless wooden figure: ¾, front, side, back (egg head, ball joints) | VIS-01 |
+| `01`–`04` | Default wooden figure with the neutral carved face: ¾, front, side, back (egg head, ball joints); refreshed 2026-11-27 for the sculpted faces (view presets ¾ R, Front, Left, Back) | VIS-01 |
 | `05` | Hand: palm, wrist ball, three-phalanx fingers, thumb | VIS-01 |
 | `06` | Posed figure: bent elbows and knee, turned head, curled fingers | VIS-01 |
 | `07` | Curled fingers with an opposed thumb (close-up) | VIS-01 |

@@ -888,13 +888,42 @@ All three.js / R3F code lives in `src/features/editor/scene/`.
   | `handSize`, `footSize` | × | 0.75–1.25 | extremity multipliers (additive contract change, approved) |
 
   `computeSkeleton(p)` → `SkeletonLayout` (bone offsets, lengths, rest positions, dimensions for the
-  mesh builders). `figure-model.ts` caches `getFigureModel(presetId, proportions)` (layout + geometry)
-  and computes `groundedHipsHeight` (lowest posed vertex at y = 0, CPU skinning in `mesh/skin.ts`).
+  mesh builders). `figure-model.ts` caches `getFigureModel(presetId, proportions)` (layout + geometry;
+  the key is the resolved proportions **plus the preset's face style**, so custom proportions keep
+  their preset's face) and computes `groundedHipsHeight` (lowest posed vertex at y = 0, CPU skinning
+  in `mesh/skin.ts`).
 - `mesh/build.ts` — generated, never loaded: revolved profiles (pelvis, abdomen, ribcage, neck, limbs
-  with muscle bulges, elliptical cross-sections), superellipsoids (palm, toes, faceless egg head),
-  spheres (ball joints, slightly darker tint), capsules (3 phalanges per finger, thumb metacarpal),
-  lofted feet. **One geometry per figure; every vertex carries exactly one bone index (rigid
-  skinning)** → one `SkinnedMesh`, one draw call per figure (PERF-08: 1 mesh, + 1 outline for toon).
+  with muscle bulges, elliptical cross-sections), superellipsoids (palm, toes), the sculpted egg head
+  (`mesh/head.ts`), spheres (ball joints, slightly darker tint), capsules (3 phalanges per finger,
+  thumb metacarpal), lofted feet. **One geometry per figure; every vertex carries exactly one bone
+  index (rigid skinning)** → one `SkinnedMesh`, one draw call per figure (PERF-08: 1 mesh, + 1
+  outline for toon). `buildMannequinGeometry(layout, faceStyleId)`; 18,169 vertices / 32,552
+  triangles per figure (was 16,093 / 28,496 with the faceless head: +14 %).
+- **Faces** (ADR-061) — `mesh/face.ts`: nine generic `FaceStyle`s (neutral, male, female, child;
+  realistic or anime) as data in head heights — eye line, nose base and mouth line above the chin;
+  socket size/depth and lid mound; brow ridge and its arch; nose length, projection, bridge, wings,
+  tip and upturn; lip width/fullness and cupid's bow; midface fill, chin (projection, width,
+  round → square), cheekbones, jaw taper (negative = broader jaw) — mapped per body preset by
+  `FACE_STYLE_BY_PRESET` (no scene-schema change). Men and women differ in every feature group:
+  heavy straight brow over deep narrow sockets / soft arched brow over large almond eyes with a
+  visible lid; long wide nose with a strong bridge and wide nostrils / small narrow upturned nose;
+  wide thin mouth / full lips with a cupid's bow; broad jaw and square chin / tapered jaw and soft
+  chin (unit test MAN-17). `createFaceRelief(style)` turns a style into a smooth (C1),
+  mirror-symmetric relief field: orbit bowl and the crease under the brow, almond closed-lid mound,
+  brow ridge and nasion, nose (ridge profile + wings as a smooth union), closed lips with the line
+  between them and the cupid's bow, chin, cheekbones, midface. `mesh/head.ts` builds the egg (same
+  profile as the faceless head: chin −0.26, crown +0.74 head heights from the head joint) on a
+  non-uniform, mirror-symmetric 56 × 52 grid — denser columns over the face with one exactly on the
+  centreline, rows focused on the eyes, nose underside and lips — and offsets its front along +Z by
+  the relief (plus a lateral jaw taper), so the grid cannot fold and the head height is unchanged.
+  Head normals come from the grid's own vertices (`gridNormals`, central differences): relief finer
+  than the grid would otherwise alias into speckles. For the toon material the geometry also
+  carries `toonNormals` (normals of the egg with only the face's broad forms — nose, sockets with
+  lids, both lips as one volume — which keeps the cel terminator clean) and `toonCavity` (0…1: the
+  upper-lid creases, the nostrils/under-nose shadow and the lip line, which the cel pass draws in
+  the shadow tone whatever the light, so anime faces read as drawn features at drawing distance);
+  all other vertices repeat their normals and have no cavity. Imported models (§9.11) are
+  unaffected.
 - Picking: R3F raycasts the `SkinnedMesh` (three skins the hit triangles), `boneFromFace(geometry,
   face.a)` reads the `skinIndex` → bone; `mesh.userData.mannequinId` identifies the figure.
   `geometry.parts` lists `{ name, bone, start, count }` vertex ranges — the PROJECT §7.3 segment → bone
@@ -904,7 +933,11 @@ All three.js / R3F code lives in `src/features/editor/scene/`.
   mapping and that every vertex of a part carries its bone index. E2E resolves bones with
   `project({ kind: "bone" })` (segment centroid + occlusion check) and real clicks.
 - `mesh/three-rig.ts` — three.js rig (bones, `SkinnedMesh`, fixed bounding sphere 1.15 × height
-  around the hips — valid for any pose), toon outline hull sharing the skeleton, `applyPose`.
+  around the hips — valid for any pose), toon outline hull sharing the skeleton, `applyPose`. The
+  geometry gets `toonNormal` and `toonCavity` attributes (the toon data above). The outline hull skips its screen
+  offset where `toonNormal` faces the camera but differs from the true normal — the face's small
+  creases (lid crease, lip line), which would otherwise flicker as stray strokes while orbiting;
+  silhouettes, the nose contour and the whole body keep the full outline.
 
 ### 9.4 Materials — `src/lib/mannequin/materials.ts` *(implemented)*
 
@@ -913,7 +946,7 @@ All three.js / R3F code lives in `src/features/editor/scene/`.
 | Wood | `MeshStandardMaterial` roughness 0.52 + procedural grain (seeded 512 × 256 `CanvasTexture`, streaks along the limb UVs — original asset) |
 | Clay | `MeshStandardMaterial`, roughness 0.95 |
 | Plaster | `MeshStandardMaterial`, roughness 0.9 |
-| Toon | `MeshToonMaterial` with a 2-step ramp (terminator at dot(N, L) ≈ 0.2) + a post-lighting cel pass: two flat tones — lit = the picked colour × the light's hue, shadow (form or cast) = darker, more saturated shade whose depth follows the ambient fill (50–85 %) — not tone-mapped; inverted-hull outline (≈ 2.2 px, constant on screen) |
+| Toon | `MeshToonMaterial` with a 2-step ramp (terminator at dot(N, L) ≈ 0.2) + a post-lighting cel pass: two flat tones — lit = the picked colour × the light's hue, shadow (form or cast) = darker, more saturated shade whose depth follows the ambient fill (50–85 %) — not tone-mapped; lit with the `toonNormal` attribute (the face's broad forms only, ADR-061); face cavities (`toonCavity` > 0.5: lid creases, nostrils, lip line) take the shadow tone with an anti-aliased edge, before the selection highlight (which still applies on top, one draw call); inverted-hull outline (≈ 2.2 px, constant on screen) |
 
 Default tint per style: `MATERIAL_DEFAULT_COLORS` (S5); switching the style follows the new style's
 default tint unless the tint was customised. Selection/hover highlight is injected with
@@ -1876,3 +1909,4 @@ flowchart TB
 | 058 | **Free-tier save policy** (cloud editor, §11): content changes save 3 s after the last change and at most 30 s after the first unsaved one; a due save waits while a pointer is held (never past the 30 s); no-op saves are skipped (structural comparison, then the exact JSON). **Camera-only changes never save alone**: they ride along with the next scene save or go out on Ctrl/Cmd+S, when the tab is hidden or closed (keepalive) or after 60 s without changes, and they don't count as unsaved (status stays *Saved*, `save-status[data-camera-pending]`, no `beforeunload` prompt). **Thumbnails** only after content changes, at most every 120 s, made once the scene is still (1.5 s, no drag): 320 × 200 WebP (JPEG where WebP can't be encoded), quality 0.68 → 0.42 aiming at ≤ 25 KB; a ready one rides along with the next save (a save never waits for it), goes alone only after 30 s without changes (in the same request as a pending view) or when the editor closes, and never when the image is unchanged | Each PATCH is a Vercel function invocation and may wake the Neon compute (owner: free hosting). Same scripted input with a fake clock: a 10-minute editing session 82 → 41 PATCH (66 scene + 16 thumbnail-only → 35 scene + 5 scene-with-thumbnail + 1 thumbnail), a 60 s orbit-only session 8 → 0. Production build in Chromium: one edit = one PATCH 3.0 s later carrying an 8.5 KB WebP; Ctrl+S sends within 4 ms. Ctrl+S keeps saving the view so an explicit save is complete and tests can make camera persistence deterministic | Accepted (S4) |
 | 059 | **View lock** (owner request): `lock.view` (additive, default `false`) joins the scene locks; the master lock (`L`, toolbar button) = pose + lights + view, the lock menu and `V` toggle the view alone. Locked = no orbit/zoom/pan input (`enableRotate/Zoom/Pan`, not `enabled`), camera commands refused in the store, the angle on screen at lock time saved and held every frame | Artists draw from one fixed angle; an accidental orbit while sketching loses it. Refusing in the store (last line of defence) and disabling the input closes every path; holding the stored camera every frame (as a fixed point of OrbitControls' limits) keeps the view exact across damping tails, resizes and reloads. Locks stay a saved, non-undoable mode (ADR-034) | Accepted (S2; PROJECT F6 by the supervisor) |
 | 060 | **Framing and auto framing** (supervisor G2 review: "the default view (and Frame selection/view presets) should show the whole figure head-to-toe with a comfortable margin, including the floor contact/shadow … fit the figure's bounding box (respecting focal length)"): an exact fixed-direction frustum fit of point sets (`lib/framing.ts`) for the current lens and canvas aspect — figures + floor contact with an 8 % margin, bulbs 36 px inside the edges and clear of the camera views cluster; presets frame all visible figures, `F` the selection. A camera at the factory placement means "never moved": the editor frames the scene for the canvas and lens it is shown with and re-frames on resize / lens change, without saving, until the user moves the camera | A fixed default camera cannot fit every aspect ratio and focal length (and an older, closer default cropped the feet); saving the fitted view on open would create a camera-only change for every fresh workspace (autosave, COST-04) and pin one device's framing for all others. The placement doubles as the "auto" marker, so the document contract is unchanged | Accepted (S2) |
+| 061 | **Sculpted faces per body preset** (owner request 2026-11-27: "add a nose and eye sockets to the mannequin … also add lips; each existing model gets its own style of eye sockets, nose and mouth, for male and female models"): nine generic face styles as data (`mesh/face.ts`, `FACE_STYLE_BY_PRESET`), carved as a C1 relief on the egg head's front along +Z on a non-uniform mirror-symmetric 56 × 52 grid (`mesh/head.ts`, grid-derived normals); the figure-model key includes the face style; toon shading reads separate `toonNormal`s (egg + broad forms) plus a per-vertex `toonCavity` drawn in the shadow tone (lid creases, nostrils, lip line), and the outline skips face creases | Real geometry (not paint) is what makes a bulb cast form and cast shadows in the sockets and under the brow, nose and lips — the point of light study. A +Z heightfield cannot fold, keeps the head height (BODY-01 heads tall) and keeps rigid skinning (every face vertex on `head`); a feature-focused grid keeps the triangle increase at +14 % (one draw call per figure as before). Small relief breaks a two-tone terminator into specks and makes inverted-hull strokes flicker, so cel shading uses the smooth forms and the hull ignores creases that the cel shading smooths over; with only the smooth forms anime faces would nearly vanish in cel shading (supervisor review), so the few cavities an illustrator would draw (lash/lid line, nostrils, mouth line) are baked per vertex and always take the shadow tone. The preset → face mapping needs no scene-schema change; custom proportions keep their preset's face. Generic types only — no character likeness (ADR-011) | Accepted (S2; owner request via the supervisor) |

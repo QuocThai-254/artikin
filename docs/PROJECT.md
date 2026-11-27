@@ -58,8 +58,10 @@ browser:
   shadows that fall on the figure and the floor.
 - **Lock** — freeze the pose and the lights, then inspect the figure from any angle without
   nudging anything.
-- **Body types for anime artists** — a faceless default mannequin plus anime-proportioned
-  age/build presets (child, teen, young adult, compact adult, …) and a cel-shaded (toon) material.
+- **Body types for anime artists** — a classic wooden default mannequin plus realistic and
+  anime-proportioned age/build presets (child, teen, young adult, compact adult, …), each with its
+  own sculpted face (eye sockets, nose, closed lips; male, female, child or neutral), and a
+  cel-shaded (toon) material.
 - **Accounts & workspaces** — sign in and keep up to **5** saved workspaces (scenes) per account.
 - **Zero install** — runs in any modern desktop browser from a public Vercel URL.
 
@@ -93,7 +95,8 @@ oriented, with a one-click lock**.
 
 - Animation, keyframes or timelines.
 - Physics, collision avoidance or self-intersection prevention (limits only).
-- Facial features, expressions, hair or clothing.
+- Facial expressions, hair or clothing. (Faces are in scope since 2026-11-27: one neutral sculpted
+  face style per body preset, eyes and mouth closed — F1, §8.1.)
 - Phone-first posing UX (phones get best-effort viewing; posing targets desktop/tablet).
 - Real-time multi-user collaboration.
 - Asset marketplace; importing third-party character models (see roadmap, VRM import).
@@ -137,10 +140,11 @@ Priority: **P0** = must ship in v1 · **P1** = should ship in v1 · **P2** = roa
 
 ### F1 — Posable mannequin (P0)
 
-- Procedurally generated, **faceless** figure: egg-shaped head without facial features, neck, chest,
-  abdomen, pelvis, shoulder girdle, upper arms, forearms, hands (palm + thumb + four fingers with
-  three phalanges each), thighs, shins, feet and toes. The *Classic Wooden* style shows spherical
-  ball joints like a physical artist mannequin.
+- Procedurally generated figure: egg-shaped head with a **sculpted face** (eye sockets under a brow
+  ridge with closed lids, a nose and closed lips — one style per body preset, §8.1; owner request,
+  2026-11-27), neck, chest, abdomen, pelvis, shoulder girdle, upper arms, forearms, hands (palm +
+  thumb + four fingers with three phalanges each), thighs, shins, feet and toes. The *Classic
+  Wooden* style shows spherical ball joints like a physical artist mannequin.
 - **51 bones** (see §7). Every bone except the root is individually selectable and rotatable within
   its range of motion; the root (`hips`) places and orients the whole figure.
 - Left/right symmetry: limits mirror exactly between sides.
@@ -150,6 +154,10 @@ Priority: **P0** = must ship in v1 · **P1** = should ship in v1 · **P2** = roa
 - No input path can produce an angle outside the limits (gizmo, IK, slider, numeric input, presets,
   mirror, loaded workspace — out-of-range values in stored data are clamped on load).
 - Changing body preset or proportions never changes the stored pose angles.
+- The face is real relief geometry, not paint: a bulb casts form and cast shadows in the eye sockets
+  and under the brow, nose and lower lip. It is symmetric, faces the figure's front, scales with the
+  head size and the proportion sliders, keeps its preset's style under custom proportions and reads
+  cleanly in all four materials (no stray toon outline strokes). Imported models keep their own face.
 
 ### F2 — Body presets & proportions (P0; chibi preset P2)
 
@@ -438,7 +446,7 @@ reproducing a specific copyrighted character (see §15).
 
 | `presetId` | UI name | Height | Heads tall | Build notes | Default material | Priority |
 |---|---|---|---|---|---|---|
-| `classic-wooden` | Classic Wooden (default) | 1.75 m | 7.5 | Idealized neutral body, faceless egg head, visible ball joints | Wood | P0 |
+| `classic-wooden` | Classic Wooden (default) | 1.75 m | 7.5 | Idealized neutral body, simple carved face, visible ball joints | Wood | P0 |
 | `realistic-male` | Realistic Man | 1.78 m | 7.5 | Average adult male | Clay | P0 |
 | `realistic-female` | Realistic Woman | 1.65 m | 7.5 | Average adult female (narrower shoulders, wider hips) | Clay | P0 |
 | `anime-child` | Anime Child (~10 y) | 1.40 m | 5.5 | Slim, large head, short limbs, no muscle definition | Toon | P0 |
@@ -452,6 +460,24 @@ reproducing a specific copyrighted character (see §15).
 Anime presets differ from realistic ones mainly in proportions: larger heads for younger ages,
 longer legs (≈ 50–55 % of height) for teens/young adults, slimmer limbs, smaller hands/feet.
 Every preset is a set of default values for the proportion sliders (F2), so users can fine-tune.
+
+**Faces** (owner request, 2026-11-27; ARCHITECTURE ADR-061). Every preset carries a generic sculpted
+face — never the likeness of a character (§15) — with a neutral expression, closed eyes (lid mounds
+in the sockets) and a closed mouth. Male and female faces differ at drawing distance:
+
+| Preset(s) | Face style | Reads as |
+|---|---|---|
+| `classic-wooden` | Neutral carved | Simplified carved face: brow ridge, sockets, wedge nose, simple closed lips; neither male nor female |
+| `realistic-male` | Realistic male | Heavy, straight brow over deep, narrow sockets; long, wide nose with a strong bridge and wide nostrils; wide mouth, thin lips; broad jaw, square chin |
+| `realistic-female` | Realistic female | Soft, arched brow; large almond eyes with a visible upper lid; small, narrow, upturned nose; full lips with a cupid's bow and a fuller lower lip; narrow jaw, soft chin |
+| `anime-child` | Anime child | Rounder and softer: large shallow eye areas set low on the big cranium, features close together, button nose, tiny mouth, full cheeks |
+| `anime-teen-boy`, `anime-young-man`, `anime-compact-adult` | Anime male (teen → young → mature) | Straight brow, narrower eye areas, a small sharp nose and a small thin-lipped mouth; brow, nose and chin grow stronger from the teen to the compact adult |
+| `anime-teen-girl`, `anime-young-woman` | Anime female | Arched brow, large round eye areas, a tiny upturned nose, a tiny full mouth, a soft narrow chin |
+
+The face is part of the head's geometry, so it follows the head-size and proportion sliders; custom
+proportions keep their preset's face. Toon shading draws the faces' broad forms as clean cel shapes
+plus the lines an illustrator would draw — the lid/lash line, the nostrils and the mouth line — so
+anime faces read at drawing distance.
 
 ### 8.2 Materials
 
@@ -609,7 +635,7 @@ Shortcuts are disabled while typing in inputs.
 | ID | Topic | Decision |
 |---|---|---|
 | A1 | Name | **Artikin** (artist + manikin). Folder `PJ_Per\artikin`. |
-| A2 | Reference image | The image mentioned in the request was not received. The default figure follows the classic **faceless wooden artist mannequin** (egg head, ball joints). |
+| A2 | Reference image | The image mentioned in the request was not received. The default figure follows the classic **wooden artist mannequin** (egg head, ball joints). It was faceless until the owner asked for faces (A12); it now has a simple, neutral carved face. |
 | A3 | Anime characters | Specific copyrighted characters are **not** reproduced; replaced by generic anime age/build presets + toon material (§8, §15). |
 | A4 | Workspace limit | Default 5, configurable (`MAX_WORKSPACES_PER_USER`). |
 | A5 | Auth scope | Email/password + optional OAuth; no email verification / password reset in v1. |
@@ -619,6 +645,7 @@ Shortcuts are disabled while typing in inputs.
 | A9 | Device focus | Desktop/laptop with mouse first; touch is best effort. |
 | A10 | ROM realism | Realistic limits by default; a "Flexible (athlete)" profile is a roadmap item. |
 | A11 | Compliance | Personal project with strict rules: separation from any workplace code/data/accounts, localhost-only servers, no external services or account sign-ups by agents, permissive OSS licenses only, original assets only (rules in AGENTS.md → Compliance & safety). |
+| A12 | Faces | Owner request (2026-11-27): "add a nose and eye sockets to the mannequin" and "also add lips; each existing model gets its own style of eye sockets, nose and mouth, for male and female models". Every body preset now has a generic sculpted face style (§8.1, ARCHITECTURE ADR-061): real relief geometry, neutral expression, eyes and mouth closed. Expressions, hair and clothing stay out of scope (§3.2); no character likeness (§15). |
 
 ## 18. Roadmap & out of scope
 

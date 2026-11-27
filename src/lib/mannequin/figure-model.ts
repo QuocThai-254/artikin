@@ -6,6 +6,7 @@
 
 import { forwardKinematics, rootTransformOf } from "./kinematics";
 import { type MannequinGeometryData, buildMannequinGeometry } from "./mesh/build";
+import { faceStyleForPreset } from "./mesh/face";
 import { lowestPointY } from "./mesh/skin";
 import type { Pose } from "./pose-math";
 import { getBodyPreset } from "./presets/body";
@@ -34,7 +35,9 @@ export function resolveFigureProportions(presetId: string, overrides?: Readonly<
 
 export function getFigureModel(presetId: string, overrides?: Readonly<Partial<BodyProportions>>): FigureModel {
   const proportions = resolveFigureProportions(presetId, overrides);
-  const key = proportionsKey(proportions);
+  // The face comes from the preset; custom proportions keep it (ADR-061).
+  const face = faceStyleForPreset(presetId).id;
+  const key = `${proportionsKey(proportions)}|${face}`;
   const hit = cache.get(key);
   if (hit) {
     cache.delete(key);
@@ -42,7 +45,7 @@ export function getFigureModel(presetId: string, overrides?: Readonly<Partial<Bo
     return hit;
   }
   const layout = computeSkeleton(proportions);
-  const model: FigureModel = { key, proportions, layout, geometry: buildMannequinGeometry(layout) };
+  const model: FigureModel = { key, proportions, layout, geometry: buildMannequinGeometry(layout, face) };
   cache.set(key, model);
   if (cache.size > CACHE_LIMIT) {
     const oldest = cache.keys().next().value;

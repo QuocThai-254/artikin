@@ -1,17 +1,21 @@
 /**
- * Procedural mannequin geometry (classic wooden artist-manikin style): egg head without a face,
- * ball joints, turned limbs, palm + three-phalanx fingers, wedge feet. Dependency-free: produces
- * plain typed arrays in the REST pose (figure frame, root joint at the origin) with one bone index
- * per vertex (rigid skinning). The renderer wraps them into a single skinned mesh per figure;
- * grounding and picking tests use the same data.
+ * Procedural mannequin geometry (classic wooden artist-manikin style): egg head with a sculpted face
+ * (eye sockets, nose, closed lips; one style per body preset, `face.ts`), ball joints, turned limbs,
+ * palm + three-phalanx fingers, wedge feet. Dependency-free: produces plain typed arrays in the REST
+ * pose (figure frame, root joint at the origin) with one bone index per vertex (rigid skinning). The
+ * renderer wraps them into a single skinned mesh per figure; grounding and picking tests use the
+ * same data.
  */
 
 import { HUMAN_BONE_NAMES, type HumanBoneName, sideBoneName } from "../bones";
 import type { Side } from "../pose-math";
 import { FINGER_NAMES, type SkeletonLayout } from "../proportions";
 import { type Quat, type Vec3, quatFromAxisAngle } from "../quat";
+import { DEFAULT_FACE_STYLE_ID, FACE_STYLES, type FaceStyleId } from "./face";
+import { buildHead } from "./head";
 import {
   type MeshPart,
+  bump,
   capsule,
   makeProfile,
   monotoneCubic,
@@ -26,6 +30,10 @@ export interface MannequinGeometryData {
   /** Rest-pose positions in the figure frame (root joint at the origin). */
   positions: Float32Array;
   normals: Float32Array;
+  /** Normals for cel (toon) shading: the true ones except on the face (`head.ts`). */
+  toonNormals?: Float32Array;
+  /** Cavities drawn in the cel shadow tone (0 … 1): the face's lid creases, nostrils and lip line. */
+  toonCavity?: Float32Array;
   uvs: Float32Array;
   /** RGB multiplier per vertex (ball joints are slightly darker). */
   colors: Float32Array;
@@ -42,15 +50,11 @@ export const BONE_INDEX: Readonly<Record<HumanBoneName, number>> = Object.fromEn
 
 const JOINT_TINT = 0.86;
 
-/** Smooth bump centred at c with half-width w (0 outside). */
-const bump = (t: number, c: number, w: number) => {
-  const x = (t - c) / w;
-  return Math.abs(x) >= 1 ? 0 : 0.5 * (1 + Math.cos(Math.PI * x));
-};
-
 class Collector {
   positions: number[] = [];
   normals: number[] = [];
+  toonNormals: number[] = [];
+  toonCavity: number[] = [];
   uvs: number[] = [];
   colors: number[] = [];
   bones: number[] = [];
@@ -66,6 +70,8 @@ class Collector {
     const count = placed.positions.length / 3;
     this.positions.push(...placed.positions);
     this.normals.push(...placed.normals);
+    this.toonNormals.push(...(placed.shadeNormals ?? placed.normals));
+    this.toonCavity.push(...(placed.cavity ?? new Array<number>(count).fill(0)));
     this.uvs.push(...placed.uvs);
     for (let i = 0; i < count; i++) {
       this.colors.push(tint, tint, tint);
@@ -79,6 +85,8 @@ class Collector {
     return {
       positions: new Float32Array(this.positions),
       normals: new Float32Array(this.normals),
+      toonNormals: new Float32Array(this.toonNormals),
+      toonCavity: new Float32Array(this.toonCavity),
       uvs: new Float32Array(this.uvs),
       colors: new Float32Array(this.colors),
       boneIndices: new Uint16Array(this.bones),
@@ -123,7 +131,10 @@ function limb(
   });
 }
 
-export function buildMannequinGeometry(layout: Readonly<SkeletonLayout>): MannequinGeometryData {
+export function buildMannequinGeometry(
+  layout: Readonly<SkeletonLayout>,
+  face: FaceStyleId = DEFAULT_FACE_STYLE_ID,
+): MannequinGeometryData {
   const c = new Collector(layout);
   const d = layout.dims;
   const H = d.height;
@@ -238,33 +249,7 @@ export function buildMannequinGeometry(layout: Readonly<SkeletonLayout>): Manneq
     );
     c.add("neck", "neck", revolve(profile, { uSegs: 22, vSegs: 10, scale: [1, 1.06] }));
   }
-  {
-    const hh = d.headHeight;
-    const hw = d.headWidth / 2;
-    const hd = d.headDepth / 2;
-    const profile = makeProfile(
-      [
-        [-0.19 * hh, 0.5 * hw],
-        [-0.1 * hh, 0.7 * hw],
-        [0.05 * hh, 0.86 * hw],
-        [0.22 * hh, 0.96 * hw],
-        [0.38 * hh, 1.0 * hw],
-        [0.5 * hh, 0.97 * hw],
-      ],
-      (0.07 * hh) / (0.5 * hw),
-      (0.24 * hh) / (0.97 * hw),
-    );
-    c.add(
-      "head",
-      "head",
-      revolve(profile, {
-        uSegs: 34,
-        vSegs: 26,
-        scale: [1, hd / hw],
-        offset: (t) => [0, 0.06 * hh * (1 - t) - 0.02 * hh * bump(t, 0.75, 0.3) + 0.01 * hh],
-      }),
-    );
-  }
+  c.add("head", "head", buildHead(d, FACE_STYLES[face]));
 
   for (const side of ["left", "right"] as const) {
     addArm(c, layout, side, mus);
