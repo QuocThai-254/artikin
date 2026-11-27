@@ -1,0 +1,46 @@
+erDiagram
+  user ||--o{ workspace : "owns (max 5)"
+  user ||--o{ session : "signs in with"
+  user ||--o{ account : "authenticates via"
+  user {
+    text id PK
+    text name
+    text email UK
+    boolean email_verified
+    text image
+    timestamp created_at
+    timestamp updated_at
+  }
+  workspace {
+    uuid id PK
+    text user_id FK "on delete cascade"
+    varchar name "1-60 characters"
+    jsonb scene "SceneDocument"
+    integer scene_version
+    text thumbnail "data URL or null"
+    timestamptz created_at "ms precision"
+    timestamptz updated_at "concurrency token"
+  }
+  session {
+    text id PK
+    text user_id FK
+    text token UK
+    timestamp expires_at
+    text ip_address
+    text user_agent
+    timestamp created_at
+    timestamp updated_at
+  }
+  account {
+    text id PK
+    text user_id FK
+    text provider_id "credential, github, google"
+    text account_id
+    text password "scrypt hash"
+    text access_token
+    text refresh_token
+    text id_token
+    text scope
+    timestamp created_at
+    timestamp updated_at
+  }

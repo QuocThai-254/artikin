@@ -1,0 +1,14 @@
+# Line endings: LF in the repository and in working copies on every OS (Prettier's default
+# `endOfLine: "lf"`), whatever a machine's `core.autocrlf` / `core.safecrlf` settings are.
+* text=auto eol=lf
+
+# Binary assets — never converted or diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.glb binary
+*.vrm binary
+*.woff binary
+*.woff2 binary

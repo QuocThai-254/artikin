@@ -1,0 +1,25 @@
+{
+  // Deterministic type check for `npm run typecheck` (ARCHITECTURE §15, ADR-013).
+  // Next.js rewrites tsconfig.json and next-env.d.ts to point at whichever `.next*` dir the last
+  // dev server/build used; several agents use different dist dirs at the same time. This config
+  // therefore ignores every `.next*` dir and next-env.d.ts and loads Next's ambient types from
+  // src/types/next-ambient.d.ts instead. Consequence: do not use the generated global route
+  // helpers (`PageProps`, `LayoutProps`, `RouteContext`) — type props explicitly.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "tests/**/*.ts", "*.ts", "*.mts"],
+  "exclude": [
+    "node_modules",
+    "next-env.d.ts",
+    ".next",
+    ".next*",
+    ".data",
+    "drizzle",
+    "test-results",
+    "playwright-report",
+    "blob-report"
+  ]
+}

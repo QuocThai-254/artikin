@@ -1,0 +1,39 @@
+flowchart TB
+  proxy["src/proxy.ts<br/>cookie-presence redirects"]
+  subgraph app["src/app · routes (thin)"]
+    direction TB
+    rMkt["(marketing) · landing"]
+    rAuth["(auth) · sign-in, sign-up"]
+    rDash["(app) · workspaces dashboard"]
+    rEd["editor · editor/[workspaceId]"]
+    rApi["api/auth · api/workspaces"]
+  end
+  subgraph features["src/features · UI by domain"]
+    direction TB
+    fAuth["auth<br/>forms · OAuth buttons · sign-out"]
+    fEd["editor<br/>store · scene · components<br/>persistence · model-import"]
+    fWs["workspaces<br/>dashboard · API contract · API client"]
+  end
+  comps["src/components<br/>site chrome · shadcn/ui"]
+  server["src/server<br/>workspace service · HTTP helpers · errors"]
+  subgraph lib["src/lib · shared, mostly pure TypeScript"]
+    direction TB
+    lAuth["auth<br/>Better Auth server + client"]
+    lModel["model-import<br/>format · analysis · retargeting · storage"]
+    lDb["db<br/>Drizzle schema · driver selection"]
+    lScene["scene<br/>document schema"]
+    lMan["mannequin<br/>skeleton · ROM · FK/IK · mesh · presets"]
+  end
+
+  app --> features
+  app --> comps
+  app --> server
+  features --> comps
+  features --> lib
+  fEd --> fWs
+  server --> lib
+  proxy --> lAuth
+  lAuth --> lDb
+  lDb --> lScene
+  lModel --> lScene
+  lScene --> lMan

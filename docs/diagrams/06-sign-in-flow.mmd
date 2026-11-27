@@ -1,0 +1,29 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant B as Browser
+  participant X as proxy.ts
+  participant A as /api/auth (Better Auth)
+  participant P as /workspaces page
+  participant DB as PostgreSQL
+
+  U->>B: Open /sign-in
+  B->>X: GET /sign-in
+  X-->>B: No session cookie, serve the prerendered page (CDN)
+  U->>B: Submit email and password
+  B->>A: POST /api/auth/sign-in/email
+  A->>DB: Rate-limit bucket, password check, new session row
+  A-->>B: Set-Cookie session_token (HttpOnly),<br/>session_data (5-min cache), artikin_auth hint
+  B->>X: GET /workspaces
+  X->>P: Session cookie present (no database check)
+  P->>P: requireSession() reads the signed cache cookie
+  alt Session valid
+    P->>DB: List the user's workspaces (1 query)
+    P-->>B: Dashboard HTML
+  else Session revoked or expired
+    P-->>B: Redirect to /api/auth/session-expired
+    B->>A: GET /api/auth/session-expired
+    A->>DB: Re-check the session, bypassing the cache
+    A-->>B: Clear session cookies and hint,<br/>redirect to /sign-in
+  end
+  Note over B: Static pages read only the artikin_auth hint (UI only, never authorization)

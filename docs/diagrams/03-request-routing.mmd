@@ -1,0 +1,12 @@
+flowchart TB
+  req(["Browser request"]) --> path{"Path"}
+  path -->|"/ · /editor · /_next/static · icons, robots, sitemap"| cdn["CDN · prerendered ○<br/>no function, no database"]
+  path -->|"/sign-in · /sign-up"| p1["proxy.ts"]
+  path -->|"/workspaces · /editor/[id]"| p2["proxy.ts"]
+  path -->|"/api/auth/** · /api/workspaces/**"| api["Route Handlers ƒ · Node.js function<br/>session checked on every call"]
+  p1 -->|"no session cookie"| cdn
+  p1 -->|"session cookie"| dest["307 to the sanitized callbackUrl<br/>or /workspaces"]
+  p2 -->|"no session cookie"| login["307 to /sign-in?callbackUrl=…"]
+  p2 -->|"session cookie"| page["Dynamic page ƒ · Server Component<br/>requireSession() + workspace service"]
+  page --> db[("PostgreSQL")]
+  api --> db

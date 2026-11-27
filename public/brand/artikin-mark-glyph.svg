@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Artikin"><title>Artikin</title><defs><mask id="ak1m" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="32" cy="15" r="9.5" fill="#000"/></mask></defs><g mask="url(#ak1m)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M23.5 36L41 36" stroke="#D6A777" stroke-width="6.5"/>
+<path d="M31 16L16 51" stroke="#ECCFA9" stroke-width="9"/>
+<path d="M33 16L42.5 33L46.5 51" stroke="#9E6A44" stroke-width="9"/>
+</g><circle cx="32" cy="15" r="7" fill="#FEA723"/></svg>

@@ -1,0 +1,10 @@
+flowchart TB
+  owner(["Owner · git push"]) --> gh["GitHub repository<br/>owner's personal account"]
+  subgraph build["Vercel build · npm run vercel-build"]
+    tc["typecheck"] --> mg["db:migrate<br/>Drizzle SQL migrations"] --> nb["next build"]
+  end
+  gh -->|"push to main"| tc
+  mg -->|"DATABASE_URL"| neon[("Neon Postgres<br/>Free plan · aws-ap-southeast-1")]
+  nb --> cdn["Vercel CDN<br/>prerendered pages + assets"]
+  nb --> fns["Node.js functions<br/>sin1 · Singapore"]
+  fns -->|"pooled, max 1 connection per instance"| neon

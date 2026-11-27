@@ -1,0 +1,15 @@
+erDiagram
+  verification {
+    text id PK
+    text identifier
+    text value
+    timestamp expires_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  rate_limit {
+    text id PK
+    text key UK "rate-limit bucket"
+    integer count
+    bigint last_request "epoch ms"
+  }

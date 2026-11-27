@@ -1,0 +1,12 @@
+# Generated / external files — never format.
+node_modules/
+.next*/
+.data/
+drizzle/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+package-lock.json
+next-env.d.ts
+src/components/ui/

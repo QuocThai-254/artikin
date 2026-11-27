@@ -1,0 +1,32 @@
+flowchart TB
+  subgraph routes["Routes"]
+    direction LR
+    guest["/editor<br/>GuestEditor"]
+    cloud["/editor/[id]<br/>CloudEditor, scene loaded on the server"]
+  end
+  app["EditorLoader → EditorApp<br/>client only · layout · shortcuts · slots"]
+  dom["DOM UI · React + shadcn/ui<br/>toolbar, lock menu, outliner,<br/>bone, figure, light, scene and presets panels"]
+  gl["R3F canvas · three.js / WebGL<br/>mannequins, FK rings, IK handles, move gizmo,<br/>light bulbs, shadow cache, camera rig, capture"]
+  store[("Editor store<br/>zustand + zundo undo history<br/>scene · camera · selection · locks")]
+  domain["Pure domain · src/lib<br/>mannequin: bones, ROM clamp, FK, IK, presets<br/>scene: zod schema, parse, defaults"]
+  cs["CloudSession + AutosaveEngine<br/>cloud editor only"]
+  gd["Guest draft + guest-to-cloud import<br/>guest editor only"]
+  mi["Model import<br/>three-vrm loaded on demand"]
+  api["/api/workspaces/**"]
+  ls[("localStorage")]
+  idb[("IndexedDB")]
+
+  guest --> app
+  cloud --> app
+  app --> dom
+  app --> gl
+  dom <-->|"actions · selectors"| store
+  gl <-->|"gestures · render state"| store
+  store --> domain
+  store <-->|"subscribe · setPersistence"| cs
+  store <-->|"subscribe · restore draft"| gd
+  store <-->|"model reference"| mi
+  cs -->|"PATCH scene and thumbnail"| api
+  gd -->|"POST import"| api
+  gd --> ls
+  mi --> idb

@@ -1,0 +1,26 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant S as Editor store
+  participant C as CloudSession + AutosaveEngine
+  participant A as PATCH /api/workspaces/[id]
+  participant W as Workspace service
+  participant DB as PostgreSQL
+
+  U->>S: Edit poses, lights or figures
+  S-->>C: Content changed (constant-time notify)
+  Note over C: Save 3 s after the last change (at most 30 s later),<br/>waiting while a pointer is held
+  C->>A: scene, baseUpdatedAt (+ thumbnail when ready)
+  A->>W: Validate (zod schema, ROM clamp, size caps)
+  W->>DB: UPDATE where id, user_id and updated_at = baseUpdatedAt
+  alt One row updated
+    DB-->>W: New updated_at
+    W-->>A: Workspace summary
+    A-->>C: 200 with the new updatedAt
+    C-->>S: Status Saved, new baseUpdatedAt
+  else Changed in another tab or device
+    W-->>A: Conflict
+    A-->>C: 409 CONFLICT
+    C-->>U: Dialog with Reload latest or Overwrite with mine
+  end
+  Note over U,C: Camera-only changes never save alone. They ride along with the next save,<br/>or go out on Ctrl+S, when the tab is hidden or closed, or after 60 s

@@ -1,0 +1,58 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# next.js — every agent builds into its own dist dir (.next, .next-s1, .next-s2, ...)
+/.next*/
+/out/
+
+# production
+/build
+
+# local embedded database (PGlite) data
+/.data/
+
+# multi-agent coordination locks
+/.agent-locks/
+
+# local design-tool cache (contains local file paths)
+/.impeccable/
+
+# machine-local compliance data (CMP-02 workplace denylist) — never committed
+/tests/e2e/fixtures/*.local.json
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — only the documented template is tracked
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

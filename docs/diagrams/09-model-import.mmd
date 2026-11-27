@@ -1,0 +1,17 @@
+flowchart TB
+  file(["The user's own .vrm or .glb<br/>rights confirmed in the dialog"])
+  check["1 · Validate<br/>≤ 50 MB · GLB · glTF 2.0<br/>no external URIs, no Draco or KTX2"]
+  hash["2 · SHA-256 fingerprint = model id"]
+  load["3 · Load on demand<br/>GLTFLoader + three-vrm"]
+  map["4 · Map humanoid bones<br/>VRM extension or Mixamo names"]
+  analyse["5 · Analyse<br/>rest deltas · skeleton layout<br/>grounding samples · colliders"]
+  idb[("IndexedDB artikin-models<br/>this browser only")]
+  rig["Imported rig<br/>driven by Artikin's semantic pose"]
+  ref["Scene keeps a reference only<br/>source, id, name, format"]
+  server["Server<br/>never receives the file or a thumbnail of it"]
+
+  file --> check --> hash --> load --> map --> analyse
+  analyse --> idb
+  analyse --> rig
+  rig --> ref
+  ref -.->|"cloud save"| server

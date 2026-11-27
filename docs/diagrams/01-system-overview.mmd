@@ -1,0 +1,34 @@
+flowchart TB
+  subgraph browser["Browser"]
+    pages["Landing · sign-in · sign-up<br/>static HTML + small auth islands"]
+    dash["Workspaces dashboard"]
+    editor["3D editor<br/>React Three Fiber · three.js · zustand"]
+    state[("Browser state<br/>cookies · localStorage<br/>sessionStorage · IndexedDB")]
+  end
+
+  subgraph vercel["Vercel Hobby · Next.js 16"]
+    cdn["CDN<br/>prerendered pages, JS, CSS, images"]
+    proxy["proxy.ts<br/>cookie-presence redirects"]
+    subgraph functions["Node.js functions · sin1 (Singapore)"]
+      dyn["Dynamic pages<br/>/workspaces · /editor/[id]"]
+      authapi["/api/auth/** · Better Auth"]
+      wsapi["/api/workspaces/** · Route Handlers"]
+      svc["Workspace service<br/>ownership · limit of 5 · validation"]
+    end
+  end
+
+  db[("PostgreSQL<br/>production: Neon Free, aws-ap-southeast-1<br/>local: embedded PGlite")]
+  oauth["GitHub / Google OAuth<br/>optional"]
+
+  pages -->|"static pages and bundles"| cdn
+  dash -->|"/workspaces"| proxy
+  editor -->|"/editor/[id]"| proxy
+  pages -->|"sign in, up, out"| authapi
+  dash -->|"create, rename, duplicate, delete"| wsapi
+  editor -->|"autosave, thumbnails, import"| wsapi
+  proxy --> dyn
+  dyn --> svc
+  wsapi --> svc
+  svc --> db
+  authapi --> db
+  authapi -.-> oauth

@@ -1,0 +1,55 @@
+{
+  "viewBox": [
+    0,
+    -128.1,
+    2048,
+    1188.1
+  ],
+  "figures": [
+    {
+      "id": "classic-wooden",
+      "name": "Classic Wooden",
+      "age": null,
+      "heightM": 1.75,
+      "heads": 7.5,
+      "material": "wood",
+      "xPct": 16.11
+    },
+    {
+      "id": "anime-child",
+      "name": "Anime Child",
+      "age": "~10 y",
+      "heightM": 1.4,
+      "heads": 5.5,
+      "material": "toon",
+      "xPct": 34.28
+    },
+    {
+      "id": "anime-teen-boy",
+      "name": "Anime Teen Boy",
+      "age": "~15 y",
+      "heightM": 1.68,
+      "heads": 6.5,
+      "material": "toon",
+      "xPct": 52.44
+    },
+    {
+      "id": "anime-young-man",
+      "name": "Anime Young Man",
+      "age": "~19 y",
+      "heightM": 1.83,
+      "heads": 7.5,
+      "material": "toon",
+      "xPct": 70.61
+    },
+    {
+      "id": "anime-compact-adult",
+      "name": "Anime Compact Adult",
+      "age": null,
+      "heightM": 1.6,
+      "heads": 7,
+      "material": "toon",
+      "xPct": 88.77
+    }
+  ]
+}

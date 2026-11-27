@@ -1,0 +1,14 @@
+stateDiagram-v2
+  direction LR
+  [*] --> Idle
+  Idle --> BoneSelected: click a segment
+  BoneSelected --> RotatingFK: drag a gizmo ring (R)
+  RotatingFK --> BoneSelected: pointer up
+  Idle --> DraggingIK: drag an IK handle (G)
+  DraggingIK --> Idle: pointer up
+  Idle --> FigureSelected: pelvis, Move tool or outliner
+  FigureSelected --> MovingFigure: drag body or turn ring (M)
+  MovingFigure --> FigureSelected: pointer up
+  Idle --> LightSelected: click or drag a bulb
+  LightSelected --> MovingLight: drag the bulb
+  MovingLight --> LightSelected: pointer up
