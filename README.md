@@ -3,8 +3,8 @@
 **Artikin** (*artist* + *manikin*) is a free, browser-based replacement for the wooden artist
 mannequin: add posable 3D figures with human-like joints and realistic ranges of motion, pose them
 with the mouse, orbit 360°, light them with dimmable bulbs to study shadows, lock the pose, the lights
-and the camera angle while you draw, and save up to 5 workspaces per account. It is a Next.js app built
-to be hosted on Vercel.
+and the camera angle while you draw, and save up to 5 workspaces and 50 personal figure presets per
+account. It is a Next.js app built to be hosted on Vercel.
 
 > **Status:** v1 is feature-complete — editor (with the pose, light and view lock), accounts, workspaces
 > and landing page are done; the release checks (gate G5) are green on the final tree — see
@@ -117,10 +117,12 @@ uses (PGlite is single-process).
 ```
 src/
   app/            routes: (marketing) /, (auth) /sign-in /sign-up, (app) /workspaces,
-                  /editor, /editor/[workspaceId], /api/auth/[...all], /api/workspaces/**
+                  /editor, /editor/[workspaceId], /api/auth/[...all], /api/workspaces/**,
+                  /api/presets/** (personal figure presets)
   features/       UI and client logic: auth forms, the 3D editor (scene, store, panels,
-                  autosave), the workspaces dashboard
-  server/         workspace service (ownership, quota, optimistic concurrency) and HTTP helpers
+                  autosave, My presets), the workspaces dashboard, the preset API client
+  server/         workspace and preset services (ownership, quotas, optimistic concurrency) and
+                  HTTP helpers
   components/     site chrome; components/ui/ = shadcn/ui (add more with `npx shadcn@latest add <name>`)
   lib/config.ts   client-safe limits (config.server.ts: server-only env settings)
   lib/scene/      SceneDocument contract: zod schema, parseScene, defaults
@@ -187,6 +189,7 @@ functions and use the database. Technical details: [docs/ARCHITECTURE.md §16](d
    | `BETTER_AUTH_SECRET` | A new random value from the command in [Quick start](#quick-start) — not the one in your `.env.local`; mark it *Sensitive* |
    | `BETTER_AUTH_URL` | The public address, e.g. `https://<project>.vercel.app` |
    | `MAX_WORKSPACES_PER_USER` | Optional (default `5`) |
+   | `MAX_PRESETS_PER_USER` | Optional (default `50`) — personal figure presets ("My presets") per account |
    | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional OAuth sign-in; callback URLs `<BETTER_AUTH_URL>/api/auth/callback/github` and `…/google`. Accounts are never linked automatically: an address registered with a password keeps signing in with the password (ADR-041) |
 
    Never set `PGLITE_DATA_DIR`, `NEXT_DIST_DIR`, `DB_LOG_QUERIES` or `NEXT_PUBLIC_E2E` on Vercel — they
@@ -242,7 +245,7 @@ compute hours) and their URLs in `BETTER_AUTH_TRUSTED_ORIGINS`.
 
 | Vercel Hobby, per month | Limit | Used in Artikin by |
 |---|---|---|
-| Function invocations | 1,000,000 | each request to the dashboard, cloud editor, auth and workspace API (autosaves included); static pages use none |
+| Function invocations | 1,000,000 | each request to the dashboard, cloud editor, auth, workspace and preset API (autosaves included; presets are listed once per editor session when first needed and saved only on request); static pages use none |
 | Active CPU | 4 CPU-hours | the same functions |
 | Fast data transfer | 100 GB | everything downloaded from Vercel (pages, scripts, the 3D editor) |
 | Edge (CDN) requests | 1,000,000 | every file request, static ones included |
@@ -252,7 +255,7 @@ compute hours) and their URLs in `BETTER_AUTH_TRUSTED_ORIGINS`.
 | Neon Free, per project per month | Limit | Used in Artikin by |
 |---|---|---|
 | Compute | 100 CU-hours | every hour the database is awake × its size (0.25–0.5 CU) |
-| Storage | 1 GB | accounts, sessions and workspaces (a scene is ≤ 256 KB, typically < 50 KB, plus a small thumbnail) |
+| Storage | 1 GB | accounts, sessions, workspaces (a scene is ≤ 256 KB, typically < 50 KB, plus a small thumbnail) and figure presets (≤ 16 KB each, typically 2–3 KB) |
 | Egress (data transfer out) | 5 GB | query results sent to the functions |
 
 **When a limit runs out:**

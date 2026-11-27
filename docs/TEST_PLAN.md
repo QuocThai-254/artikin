@@ -9,7 +9,7 @@
 |---|---|
 | Owner | **S6 "Artikin 06 · QA & release"** — owns this file and all of `tests/e2e/**` |
 | Last updated | 2026-11-26 — S6 (Phase A, v1) |
-| Scope | PROJECT §6 F1–F14 acceptance criteria, §10 lock table, §11 limits, §14 NFRs, §3.3 metrics, §5 journeys, ARCHITECTURE §12–§16, AGENTS.md "Compliance & safety" (task Q-09) |
+| Scope | PROJECT §6 F1–F15 acceptance criteria, §10 lock table, §11 limits, §14 NFRs, §3.3 metrics, §5 journeys, ARCHITECTURE §12–§16, AGENTS.md "Compliance & safety" (task Q-09) |
 
 ## Contents
 
@@ -101,6 +101,11 @@
 | F12-R | Dashboard CRUD + usage; autosave, Ctrl/Cmd+S, status, leave warning; thumbnails & conflict handling (P1) | P0/P1 | WS-01…WS-14, DASH-01…DASH-07, SAVE-01, SAVE-03…SAVE-12, SAVE-14, VIS-06 |
 | F13 / §12 | Guest editor with local draft; Save to cloud; replace at the limit; banner; draft cleared | P1 | GUEST-01…GUEST-08, SEC-15 |
 | F14 | Landing page, CTAs, user menu, SEO + Open Graph | P1 | LAND-01…LAND-05, VIS-07 |
+| F15-AC1 | A saved preset is listed after a reload and in any other workspace; applying it reproduces body and pose, keeps place and heading, one undo step | P1 | MYP-06, MYP-07, MYP-08 |
+| F15-AC2 | A 51st preset → 409 `PRESET_LIMIT_REACHED`; the save dialog says so first | P1 | MYP-03, MYP-10 |
+| F15-AC3 | A user can never read, rename or delete another user's preset (404) | P0 | MYP-04, MYP-05 |
+| F15-AC4 | No preset request when the editor opens; guests get the sign-in prompt | P1 | MYP-06, MYP-11 |
+| F15-R | Validation and clamping, rename/delete with confirmation, imported-model figures take only the pose, accessibility | P1 | MYP-01, MYP-02, MYP-09, MYP-12 |
 | §11 | Quota configurable (default 5) and returned by the API; names 1–60; ≤ 8 figures / ≤ 4 lights; scene ≤ 256 KB; thumbnail ≤ 300 KB; permanent delete; 30-day sessions | P0 | LIM-01…LIM-11, WS-03, DASH-06, AUTH-06, AUTH-14 |
 | §14 Performance, §3.3 | fps targets, landing initial JS ≤ 160 KB gzipped incl. framework (route-specific ≤ 20 KB), three.js only on editor routes, render on demand, interaction profile | P0 | PERF-01…PERF-09 |
 | Owner: free hosting | Public pages static, no server work for anonymous visitors, cacheable thumbnails, save budget, session cookie cache | P0 | COST-01…COST-06 |
@@ -634,6 +639,30 @@ no third-party model enters the repository or the browser — and every case che
 | MOD-06 | ARCH §9.11 | E | P1 | Guest editor | `toolbar-add-figure` → `add-figure-import-model`; `local-models-open` → `local-model-use`; `figure-model-replace` (cancel); `figure-model-use-mannequin`; `local-model-remove` → `local-model-remove-confirm` | A new figure with the model; the stored model listed (`local-model-item`, `data-model-id`) and reusable; after removal the list is empty and the reference shows as missing | S8 |
 | MOD-07 | Supervisor decision, ARCH §9.11 | E | P0 | As MOD-03, also in a new editor session | Edit a figure that shows a model; save | No PATCH carries a `thumbnail` and the stored thumbnail stays `null` — nothing rendered from a user's model is uploaded | S4, S8 |
 
+### 4.22 My presets — F15 (MYP)
+
+S5 authors these cases in `tests/e2e/api/presets-api.spec.ts` and `tests/e2e/editor/my-presets.spec.ts`
+(gated by the `myPresets` flag). Fake `@example.com` accounts only; presets are seeded through the API.
+Unit level: `figure-preset.test.ts` (schema, normalization, capture), `src/server/figure-presets.test.ts`
+(quota under concurrency, ownership, size cap, re-validation on read), `src/app/api/presets/presets-api.test.ts`
+(routes), `figure-preset-actions.test.ts` (store actions), `my-presets-store.test.ts` (cache, optimistic
+rollback, API client) and `my-presets.test.tsx` (Mine tab, dialogs, Add figure; jsdom).
+
+| ID | Source | Lvl | Pri | Preconditions | Steps | Expected | Owner / hooks |
+|---|---|---|---|---|---|---|---|
+| MYP-01 | F15, ARCH §12 | E | P0 | Signed in, no presets | `POST` two presets, `GET`, `PATCH` a name, `DELETE` one | 201 with the normalized document (lowercase colour, body-only has no `pose`); list newest first with `limit: 50`; rename moves it to the top; 204; `Cache-Control: private, no-store` | S5 |
+| MYP-02 | F15, ARCH §9.10, §12 | E | P0 | Signed in | `text/plain` body; bad names (empty, blank, 61 chars, line break); unknown body preset; `version: 2`; out-of-range values with unknown keys; a 40 KB body | 400 `VALIDATION_ERROR` each; values clamped (height 9 → 2.2, spine flex → ROM max), unknown keys (`owner`, `model`, the `hips` bone) stripped; 413 `PAYLOAD_TOO_LARGE` `field: "body"` | S5 |
+| MYP-03 | F15-AC2, §11 | E | P1 | Signed in | Create 50 presets, then one more; delete one; create again | 409 `PRESET_LIMIT_REACHED` `details: { limit: 50, count: 50 }` with a clear message; after the delete, 201 | S5 |
+| MYP-04 | F15-AC3 | E | P0 | Two accounts; A has a preset | B lists, renames and deletes A's preset; B renames a random UUID and deletes `not-a-uuid` | B's list is empty; all four answer the identical 404 body; A's preset is unchanged | S5 |
+| MYP-05 | F15-AC3 | E | P0 | Signed out | `GET`, `POST`, `PATCH`, `DELETE` | 401 `UNAUTHORIZED` each | S5 |
+| MYP-06 | F15-AC1, F15-AC4 | E | P0 | Signed in, guest editor `/editor` | Load (record `/api/presets` requests); body preset Anime Child + Crouch; `figure-save-preset` → name → `my-preset-save-submit`; reload; `presets-tab-mine` | No request on load; the dialog's `GET` and one `POST`; toast; the stored pose equals the figure's; after the reload no request until Mine opens, then one `GET`; the preset listed, `1 / 50` | S5 |
+| MYP-07 | F15-AC1 | E | P0 | Preset seeded; a cloud workspace, figure at x = 0.6, heading 30° | Mine → `my-preset-apply-<id>`; then `toolbar-undo` | Body (preset id, overrides, material) and pose (fingers included) applied; x and heading kept; name unchanged; one undo step; undo restores the exact figure | S5 |
+| MYP-08 | F15 | E | P1 | Preset seeded; guest editor | `toolbar-add-figure` → `add-figure-my-preset-<id>` | Dialog closes; a new selected figure named after the preset with its body and pose | S5 |
+| MYP-09 | F15 | E | P1 | Preset seeded | Row menu → Rename… → save; row menu → Delete… → confirm | New name in the row and in the API; the delete asks first, then the row is gone, the empty state shows and the API list is empty | S5 |
+| MYP-10 | F15-AC2 | E | P1 | 50 presets seeded | Select the figure → `figure-save-preset` | `my-preset-limit-message` "50 / 50 presets"; `my-preset-save-submit` disabled | S5 |
+| MYP-11 | F15-AC4 | E | P0 | Signed out | Open the Mine tab and Add figure | `my-presets-sign-in` with `/sign-in?callbackUrl=%2Feditor` and `/sign-up?callbackUrl=%2Feditor`; Add figure invites to sign in; no `/api/presets` request; no axe violations | S5 |
+| MYP-12 | F15, A11Y | E | P1 | Preset seeded, figure selected | axe (WCAG 2.2 AA) on the Mine tab, row menu, rename dialog, delete confirmation, save dialog, Add figure | No violations; Escape closes the rename dialog, returns focus to the row's menu button and keeps the selection (keys stay inside the dialog) | S5 |
+
 ---
 
 ## 5. E2E harness design
@@ -921,6 +950,7 @@ accessible names; these ids are for canvas-adjacent, repeated or ambiguous eleme
 | Scene / environment | `scene-ambient`, `scene-floor-visible`, `scene-grid-visible`, `scene-shadow-only-floor`, `scene-background`, `scene-shadow-quality` | S2 |
 | Camera | `view-preset-front`, `view-preset-back`, `view-preset-left`, `view-preset-right`, `view-preset-top`, `view-preset-three-quarter-left`, `view-preset-three-quarter-right`, `view-frame-selection`, `view-turntable` (`aria-pressed`), `view-cube` (also `data-viewport-overlay="top-right"`: the default framing keeps the key bulb clear of this cluster — ADR-060, CAM-12), `camera-focal-length`, `camera-focal-length-input`, `camera-turntable`, `camera-turntable-speed`; view lock: `view-locked-badge` (over the view controls, whose buttons stay focusable but `aria-disabled` with the tooltip "View locked — press V to unlock"), `camera-view-locked` (Scene panel note; focal length and turntable disabled) | S2 |
 | Presets panel | `presets-panel`, `presets-tab-pose`, `presets-tab-hands`, `presets-tab-body`, `pose-preset-<id>`, `hand-preset-<id>`, `hand-preset-target-left`, `hand-preset-target-right`, `hand-preset-target-both`, `body-preset-<presetId>`, `presets-body-model-hint` (shown, with every `body-preset-*` disabled, while the figure shows an imported model) | S5 |
+| My presets (F15) | `presets-tab-mine`, `my-presets`, `my-presets-list`, `my-preset-<id>` (row), `my-preset-apply-<id>`, `my-preset-menu-<id>`, `my-preset-rename`, `my-preset-delete` (menu items), `my-preset-rename-input`, `my-preset-rename-submit`, `my-preset-delete-confirm`, `my-presets-count`, `my-presets-empty`, `my-presets-error`, `my-presets-retry`, `my-presets-sign-in` (+ `my-presets-sign-in-link`, `my-presets-sign-up-link`); save dialog: `my-preset-save-open` (Mine tab), `figure-save-preset` (figure panel), `my-preset-save-dialog`, `my-preset-name-input`, `my-preset-include-pose`, `my-preset-save-submit`, `my-preset-save-error`, `my-preset-limit-message`; Add figure: `add-figure-my-presets`, `add-figure-my-preset-<id>` | S5 |
 | Status bar | `status-bar`, `status-selection`, `status-angles`, `status-hint`, `status-lock` (what is locked, e.g. "Pose & lights locked") | S2 |
 | Persistence | `save-status` (`data-status` = `idle`, `dirty`, `saving`, `saved`, `offline`, `error` or `conflict`; cloud starts `saved`; `data-camera-pending="true"` while a view change waits to ride along with the next save — ADR-058), `save-now` (hidden below 1024 px), `save-banner` (`data-kind` = `offline`, `conflict` or an error kind such as `not-found`, `unauthorized`), `editor-workspace-name` (button), `editor-workspace-name-input` (hidden below 1024 px), `editor-workspace-name-error`, `editor-back-to-workspaces`, `conflict-dialog`, `conflict-reload`, `conflict-overwrite`, `replace-dialog`, `replace-option` (`data-workspace-id`), `replace-confirm`, `replace-cancel` | S4 |
 | Guest → cloud | `guest-save-to-cloud`; signed out it opens `save-to-cloud-dialog` with `save-to-cloud-sign-up` and `save-to-cloud-sign-in` (return URL `/editor?import=1`; the quota is pre-checked with `GET` before `POST`) | S4 |
@@ -1010,3 +1040,4 @@ Each gate also requires `npm run verify` green and the owner's own U/C/I cases f
 | 2026-11-27 | Supervisor | CMP-02 workplace markers moved out of the repository (base64 is readable by anyone once the repository is public): `denylists.ts` loads them from the git-ignored `tests/e2e/fixtures/workplace-denylist.local.json`; the run annotation reports whether the local list is present. Checks unchanged on the owner's machine |
 | 2026-11-26 | S6 | CMP-02 local paths now fail in documents too (supervisor, after neutralizing AGENTS.md / PROJECT.md): any drive-letter path outside test sources, user-profile paths and the local account name (read at run time, never stored) in every committable file. Compliance inventories skip entries that vanish mid-scan (other sessions' editors save via temp file + rename): under simulated churn the old walk failed 18/300 times with `ENOENT`, the hardened specs passed 12/12 twice |
 | 2026-11-27 | S2 | **Sculpted faces (owner request, PROJECT A12, ADR-061; S2 task FACE-01):** F1-R now covers the face; new unit tests MAN-16…22 (`src/lib/mannequin/mesh/face.test.ts`: preset → face style, male/female differences, symmetry, nose tip most forward, recessed sockets, lips between nose and chin, rigid skinning, triangle budget, head-size scaling, toon normals and cavities); VIS-01 wording; new VIS-09 (`docs/screenshots/faces/`). No new `data-testid`s and no E2E changes (the face is geometry only) |
+| 2026-11-27 | S5 | F15 "My presets" (owner request): §4.22 MYP-01…MYP-12 (`tests/e2e/api/presets-api.spec.ts`, `tests/e2e/editor/my-presets.spec.ts`, flag `myPresets` in `fixtures/features.ts`), F15 rows in the §2 matrix, the "My presets (F15)" row of §6.2, scope F1–F15. Run against a production build on localhost (12/12 green with the related existing specs) |

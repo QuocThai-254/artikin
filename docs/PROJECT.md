@@ -22,7 +22,7 @@
 3. [Goals, non-goals & success metrics](#3-goals-non-goals--success-metrics)
 4. [Target users & personas](#4-target-users--personas)
 5. [Key user journeys](#5-key-user-journeys)
-6. [Feature specification (F1–F14)](#6-feature-specification-f1f14)
+6. [Feature specification (F1–F15)](#6-feature-specification-f1f15)
 7. [Mannequin anatomy: bones & range of motion](#7-mannequin-anatomy-bones--range-of-motion)
 8. [Body presets & materials](#8-body-presets--materials)
 9. [Lighting model (artist's view)](#9-lighting-model-artists-view)
@@ -134,7 +134,7 @@ oriented, with a one-click lock**.
 | J6 | Guest → account | Guest has a draft → **Save to cloud** → sign up → the draft becomes the user's first workspace and opens in the editor. |
 | J7 | Locked inspection & drawing | User finishes a pose → presses **L** (pose, lights and view freeze — draw from this exact angle) → presses **V** to free only the camera → orbits and drags across the figure → nothing changes (pose and lights intact) → presses **L** again to unlock everything. |
 
-## 6. Feature specification (F1–F14)
+## 6. Feature specification (F1–F15)
 
 Priority: **P0** = must ship in v1 · **P1** = should ship in v1 · **P2** = roadmap (not in v1 unless time allows).
 
@@ -315,6 +315,39 @@ See §10 for the full behavior table.
 - Explains the product, shows a preview image, primary CTA **Open editor** (guest) and secondary
   **Sign in / Sign up**; header shows the user menu when signed in. Good SEO metadata and
   Open Graph image.
+
+### F15 — My presets: save your own figures (P1; owner request 2026-11-27)
+
+The owner asked (2026-11-27): when a user has finished shaping a figure, let them save it as their
+own preset to reuse later.
+
+- **Save as my preset…** (figure panel, and the **Mine** tab of the Presets panel) saves the figure's
+  **body** — its base body preset (which keeps that preset's face and defaults), every proportion,
+  the material style and tint — and, when **Include pose and hands** is ticked (default), its
+  **pose**: joint and finger angles and how the figure leans, standing on the floor or lifted.
+  Name: 1–60 characters.
+- Never saved: an imported model (its file stays on the device), the figure's name, place in the
+  scene, heading, visibility and lock state.
+- **Mine** tab (Pose · Hands · Body · Mine): the user's presets, newest first, each with a body
+  silhouette plus a stick figure when it has a pose. **Apply** to the selected figure (one undo step;
+  keeps its place and heading; disabled while the pose is locked; a figure that shows an imported
+  model takes only the pose), **Rename**, **Delete** (with confirmation).
+- **Add figure** lists **My presets** too: the new figure is shaped and posed by the preset and named
+  after it (8-figure limit).
+- Presets belong to the **account**: they work in every workspace and on every device. Guests see
+  "Sign in to save your own presets" with sign-in / sign-up links back to the editor (the guest scene
+  stays in the browser).
+- Up to **50 presets per user** (configurable). No sharing between users, no import/export and no
+  stored preview images (previews are drawn from the preset).
+
+**Acceptance criteria**
+- A preset saved in one workspace is listed after a reload and in any other workspace; applying it
+  reproduces its body and pose on the target figure, keeps that figure's place and heading, and is
+  one undo step.
+- Saving a 51st preset fails with a clear message (API `409 PRESET_LIMIT_REACHED`); the save dialog
+  says so before saving.
+- A user can never read, rename or delete another user's preset (API answers 404).
+- Opening the editor makes no preset request; the list is fetched when first needed.
 
 ## 7. Mannequin anatomy: bones & range of motion
 
@@ -532,6 +565,9 @@ Additional rules:
 - Workspace name: 1–60 characters (trimmed), default "Untitled workspace N".
 - Per scene: ≤ 8 figures, ≤ 4 lights. Serialized scene ≤ 256 KB; thumbnail ≤ 300 KB.
 - Deleting a workspace is permanent after confirmation (no trash in v1).
+- Personal figure presets (F15): `MAX_PRESETS_PER_USER` (server configuration, **default 50**),
+  returned by the API like the workspace quota; name 1–60 characters; a preset document ≤ 16 KB.
+  Deleting a preset is permanent after confirmation; figures already made with it stay as they are.
 
 ## 12. Guest mode
 
@@ -558,7 +594,7 @@ Additional rules:
 │ Outliner     │                         ┌──────────┐           │────────────────│
 │  Figure 1 🔒 │                         │ view cube│           │ Presets        │
 │  Figure 2    │                         └──────────┘           │ (pose / hands  │
-│  Key light   │                                                │  / body)       │
+│  Key light   │                                                │  / body / mine)│
 ├──────────────┴────────────────────────────────────────────────┴────────────────┤
 │ Status bar: selected bone · current angles · hint · Locked badge               │
 └────────────────────────────────────────────────────────────────────────────────┘
@@ -626,9 +662,11 @@ Shortcuts are disabled while typing in inputs.
 ## 16. Privacy & data handling
 
 - Stored personal data: name, email, password hash, OAuth account links, session records (incl. IP
-  address and user agent, as recorded by the auth library), and the user's workspaces.
+  address and user agent, as recorded by the auth library), the user's workspaces and their personal
+  figure presets (body, proportion, material and pose values — no images, no model files).
 - No advertising or third-party tracking cookies in v1; only the essential session cookie.
-- Account deletion (cascade-deletes workspaces) is P2; until then the owner can delete on request.
+- Account deletion (cascade-deletes workspaces and presets) is P2; until then the owner can delete on
+  request.
 
 ## 17. Assumptions & decisions taken during planning
 
@@ -645,14 +683,15 @@ Shortcuts are disabled while typing in inputs.
 | A9 | Device focus | Desktop/laptop with mouse first; touch is best effort. |
 | A10 | ROM realism | Realistic limits by default; a "Flexible (athlete)" profile is a roadmap item. |
 | A11 | Compliance | Personal project with strict rules: separation from any workplace code/data/accounts, localhost-only servers, no external services or account sign-ups by agents, permissive OSS licenses only, original assets only (rules in AGENTS.md → Compliance & safety). |
+| A12 | My presets (F15) | Owner feature of 2026-11-27, decisions by the supervisor: presets are stored per **account** in the database (every workspace and device), up to 50 per user (configurable); a preset always holds the body (base body preset, full proportions, material) and optionally the pose and hands; imported models, figure names, placement, heading, visibility and locks are never saved; the document is versioned (`version: 1`); the list loads on first need, saves are never automatic; no sharing, import/export or stored thumbnails. |
 | A12 | Faces | Owner request (2026-11-27): "add a nose and eye sockets to the mannequin" and "also add lips; each existing model gets its own style of eye sockets, nose and mouth, for male and female models". Every body preset now has a generic sculpted face style (§8.1, ARCHITECTURE ADR-061): real relief geometry, neutral expression, eyes and mouth closed. Expressions, hair and clothing stay out of scope (§3.2); no character likeness (§15). |
 
 ## 18. Roadmap & out of scope
 
 | Version | Items |
 |---|---|
-| **v1 (this build)** | F1–F14 (P0 + P1). |
-| v1.1 | **Import your own model (VRM 1.0/0.x, Mixamo-style GLB)** — mapped through the VRM humanoid bones (1:1 with Artikin's bone names) so ROM limits, IK, lights and lock keep working; files stay **local to the browser** (IndexedDB), never uploaded or shared; the user must own the rights (e.g. models made with VRoid Studio or licensed by their author) — planned as the compliant answer to the owner's wish for character-like models (owner may redirect). Also: lighting presets; spot/sun lights; ROM profile *Flexible*; chibi preset; save custom poses per user; read-only share links; Vietnamese UI; password reset & email verification (email provider such as Resend); account deletion; optional original anime/tokusatsu-style accessory kit (generic hair, cloak, armor — no copied designs). |
+| **v1 (this build)** | F1–F14 (P0 + P1); F15 My presets added on the owner's request (2026-11-27). |
+| v1.1 | **Import your own model (VRM 1.0/0.x, Mixamo-style GLB)** — mapped through the VRM humanoid bones (1:1 with Artikin's bone names) so ROM limits, IK, lights and lock keep working; files stay **local to the browser** (IndexedDB), never uploaded or shared; the user must own the rights (e.g. models made with VRoid Studio or licensed by their author) — planned as the compliant answer to the owner's wish for character-like models (owner may redirect). Also: lighting presets; spot/sun lights; ROM profile *Flexible*; chibi preset; save custom poses per user (done early: F15 My presets saves body and pose); read-only share links; Vietnamese UI; password reset & email verification (email provider such as Resend); account deletion; optional original anime/tokusatsu-style accessory kit (generic hair, cloak, armor — no copied designs). |
 | v2 | Props (chair, box, stick/sword); reference-image overlay; perspective/grid overlays for drawing; depth/normal/line-art export; mobile touch posing; collaboration. |
 
 Out of scope for all planned versions: distributing copyrighted character models.

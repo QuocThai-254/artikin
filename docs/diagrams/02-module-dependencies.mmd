@@ -6,16 +6,17 @@ flowchart TB
     rAuth["(auth) · sign-in, sign-up"]
     rDash["(app) · workspaces dashboard"]
     rEd["editor · editor/[workspaceId]"]
-    rApi["api/auth · api/workspaces"]
+    rApi["api/auth · api/workspaces · api/presets"]
   end
   subgraph features["src/features · UI by domain"]
     direction TB
     fAuth["auth<br/>forms · OAuth buttons · sign-out"]
     fEd["editor<br/>store · scene · components<br/>persistence · model-import"]
     fWs["workspaces<br/>dashboard · API contract · API client"]
+    fPre["figure-presets<br/>API contract · API client"]
   end
   comps["src/components<br/>site chrome · shadcn/ui"]
-  server["src/server<br/>workspace service · HTTP helpers · errors"]
+  server["src/server<br/>workspace & preset services · HTTP helpers · errors"]
   subgraph lib["src/lib · shared, mostly pure TypeScript"]
     direction TB
     lAuth["auth<br/>Better Auth server + client"]
@@ -31,6 +32,7 @@ flowchart TB
   features --> comps
   features --> lib
   fEd --> fWs
+  fEd --> fPre
   server --> lib
   proxy --> lAuth
   lAuth --> lDb

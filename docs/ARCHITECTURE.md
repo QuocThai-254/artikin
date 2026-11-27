@@ -116,16 +116,17 @@ flowchart TB
     rAuth["(auth) · sign-in, sign-up"]
     rDash["(app) · workspaces dashboard"]
     rEd["editor · editor/[workspaceId]"]
-    rApi["api/auth · api/workspaces"]
+    rApi["api/auth · api/workspaces · api/presets"]
   end
   subgraph features["src/features · UI by domain"]
     direction TB
     fAuth["auth<br/>forms · OAuth buttons · sign-out"]
     fEd["editor<br/>store · scene · components<br/>persistence · model-import"]
     fWs["workspaces<br/>dashboard · API contract · API client"]
+    fPre["figure-presets<br/>API contract · API client"]
   end
   comps["src/components<br/>site chrome · shadcn/ui"]
-  server["src/server<br/>workspace service · HTTP helpers · errors"]
+  server["src/server<br/>workspace & preset services · HTTP helpers · errors"]
   subgraph lib["src/lib · shared, mostly pure TypeScript"]
     direction TB
     lAuth["auth<br/>Better Auth server + client"]
@@ -141,6 +142,7 @@ flowchart TB
   features --> comps
   features --> lib
   fEd --> fWs
+  fEd --> fPre
   server --> lib
   proxy --> lAuth
   lAuth --> lDb
@@ -155,10 +157,11 @@ flowchart TB
 - `src/lib/mannequin` and `src/lib/scene` are pure TypeScript (three.js only in `materials.ts` and
   `mesh/three-rig.ts`), so the server reuses them for validation and the range-of-motion clamp. All
   three.js / React Three Fiber code lives in `src/features/editor/scene/`.
-- Server code reuses two client-safe modules on purpose: `src/server` imports the API contract
-  (`features/workspaces/contract.ts`), and `lib/auth` imports the destination sanitizer
-  (`features/auth/callback-url.ts`). The editor talks to the API only through the typed client in
-  `features/workspaces/api-client.ts`.
+- Server code reuses client-safe modules on purpose: `src/server` imports the API contracts
+  (`features/workspaces/contract.ts`, `features/figure-presets/contract.ts`) and the preset document
+  schema (`lib/mannequin/presets/figure-preset.ts`), and `lib/auth` imports the destination sanitizer
+  (`features/auth/callback-url.ts`). The editor talks to the API only through the typed clients in
+  `features/workspaces/api-client.ts` and `features/figure-presets/api-client.ts`.
 - `lib/config.ts` (client-safe limits) is imported across layers; `lib/config.server.ts` only on the
   server.
 
@@ -184,11 +187,13 @@ artikin/
    │  │  └─ [workspaceId]/          # cloud editor (dynamic, owner only) + not-found and error pages
    │  ├─ api/auth/[...all]/         # Better Auth handler
    │  ├─ api/workspaces/            # GET list · POST create · [id]/ GET, PATCH, DELETE · duplicate/ · thumbnail/
+   │  ├─ api/presets/               # personal figure presets: GET list · POST create · [id]/ PATCH, DELETE
    │  └─ dev/model-import/          # developer harness (answers 404 in production)
    ├─ components/                   # site-header · site-footer · user-menu · auth-switch · brand/ · ui/ (shadcn)
    ├─ features/
    │  ├─ auth/                      # sign-in/up forms, OAuth buttons, callback-url, sign-out
    │  ├─ workspaces/                # dashboard, cards, dialogs · contract.ts · api-client.ts
+   │  ├─ figure-presets/            # "My presets" API: contract.ts · api-client.ts
    │  └─ editor/
    │     ├─ editor-loader.tsx       # next/dynamic, client only
    │     ├─ editor-app.tsx          # layout, shortcuts, persistence slots (+ test-hook.ts)
@@ -203,11 +208,12 @@ artikin/
    │  ├─ config.ts · config.server.ts · utils.ts
    │  ├─ scene/                     # SceneDocument schema (zod), parse, defaults, ids
    │  ├─ mannequin/                 # bones, rom, kinematics, ik, pose-math, proportions, materials,
-   │  │                             # mesh/ (procedural mesh, rig, picking), presets/ (pose, hand, body)
+   │  │                             # mesh/ (procedural mesh, rig, picking), presets/ (pose, hand, body,
+   │  │                             # personal figure preset document)
    │  ├─ model-import/              # format checks, analysis, retargeting, IndexedDB storage, testing/
    │  ├─ auth/                      # Better Auth server + client, session helpers, hint cookie plugin
    │  └─ db/                        # Drizzle schema (+ generated auth tables), client: postgres.js / PGlite
-   ├─ server/                       # workspaces.ts (service) · http.ts · errors.ts
+   ├─ server/                       # workspaces.ts · figure-presets.ts (services) · http.ts · errors.ts
    ├─ test/                         # Vitest setup
    └─ types/                        # ambient types
 ```
@@ -228,7 +234,7 @@ Unit tests are colocated as `*.test.ts(x)`; E2E specs live in `tests/e2e/`.
 | `src/lib/config.ts` · `src/lib/config.server.ts` | Client-safe limits · server-only env settings (`getServerConfig()`) |
 | `src/lib/scene/{schema,parse,defaults,ids,index}.ts` | Scene document contract (§8) |
 | `src/lib/mannequin/bones.ts` | Skeleton contract (§9.2) |
-| `src/lib/db/{client,pglite,schema,auth-schema,test-utils,log,index}.ts` · `drizzle.config.ts` · `drizzle/0000_init.sql` | Database (§5, §6; `pglite.ts` is loaded only without `DATABASE_URL`, ADR-050) |
+| `src/lib/db/{client,pglite,schema,auth-schema,test-utils,log,index}.ts` · `drizzle.config.ts` · `drizzle/0000_init.sql` · `drizzle/0001_figure_preset.sql` | Database (§5, §6; `pglite.ts` is loaded only without `DATABASE_URL`, ADR-050) |
 | `src/lib/auth/{auth,session,auth-client}.ts` · `src/app/api/auth/[...all]/route.ts` | Better Auth (§7) |
 | `scripts/migrate.ts` | Production migrations (§6.2) |
 | `scripts/normalize-lockfile.mjs` | `lockfile:normalize` / `lockfile:check` (§15, ADR-019) |
@@ -266,6 +272,8 @@ S7's generated brand assets.
 | `src/server/workspaces.ts` | Workspace service (the only module touching `workspace`): `createWorkspaceService({ db, maxWorkspacesPerUser, sceneParseOptions? })`, `getWorkspaceService()`, `DEFAULT_SCENE_PARSE_OPTIONS` (ROM clamp, ADR-020), `nextDefaultWorkspaceName`, `copyWorkspaceName` |
 | `src/server/errors.ts` · `src/server/http.ts` | `AppError` subclasses (`UnauthorizedError`, `NotFoundError`, `ValidationError`, `PayloadTooLargeError`, `WorkspaceLimitError`, `WorkspaceConflictError`) · `withSession()`, `readJsonBody()` (640 KB cap, JSON only), `discardRequestBody()` (unread bodies drained before answering, ADR-039), `jsonResponse`/`noContentResponse`/`toErrorResponse` |
 | `src/app/api/workspaces/**` | Route handlers (§12) incl. `[id]/thumbnail` (cacheable preview images, ADR-057) + `workspaces-api.test.ts` |
+| `src/server/figure-presets.ts` · `src/app/api/presets/**` | Personal figure preset service (the only module touching `figure_preset`): `createFigurePresetService({ db, maxPresetsPerUser, maxPresetBytes? })`, `getFigurePresetService()`; route handlers (§12) + `presets-api.test.ts` |
+| `src/features/figure-presets/contract.ts` · `api-client.ts` | Client-safe preset API contract (`FigurePreset`, bodies, `FigurePresetNameSchema`, `MAX_FIGURE_PRESET_REQUEST_BYTES`) · typed browser client `figurePresetApi` / `createFigurePresetApiClient()` with `FigurePresetApiError` |
 | `src/features/workspaces/contract.ts` · `api-client.ts` | Client-safe API contract (`WorkspaceSummary`, `Workspace`, bodies, `ApiErrorCode`, `WorkspaceNameSchema`, `checkThumbnailDataUrl`, `MAX_REQUEST_BODY_BYTES`) · typed browser client `workspaceApi` / `createWorkspaceApiClient()` with `WorkspaceApiError` |
 | `src/features/workspaces/*.tsx` · `relative-time.ts` | Dashboard: `WorkspaceDashboard`, `WorkspaceCard`, `UsageMeter`, `WorkspaceThumbnail` (+ `MannequinGlyph` placeholder), rename/delete dialogs, `useClock` / `formatEditedAt` |
 | `src/app/(app)/{layout,error}.tsx` · `(app)/workspaces/{page,loading}.tsx` | Signed-in area with S7's `SiteHeader` and `<main id="main">`; server-loaded dashboard, skeleton, error boundary |
@@ -306,6 +314,7 @@ flowchart TB
 ```mermaid
 erDiagram
   user ||--o{ workspace : "owns (max 5)"
+  user ||--o{ figure_preset : "owns (max 50)"
   user ||--o{ session : "signs in with"
   user ||--o{ account : "authenticates via"
   user {
@@ -326,6 +335,15 @@ erDiagram
     text thumbnail "data URL or null"
     timestamptz created_at "ms precision"
     timestamptz updated_at "concurrency token"
+  }
+  figure_preset {
+    uuid id PK
+    text user_id FK "on delete cascade"
+    varchar name "1-60 characters"
+    jsonb data "FigurePresetData, max 16 KB"
+    integer data_version
+    timestamptz created_at "ms precision"
+    timestamptz updated_at "ms precision"
   }
   session {
     text id PK
@@ -376,7 +394,7 @@ erDiagram
   CLI (`src/lib/db/auth-schema.ts`; plain `timestamp` columns, a few token-expiry columns of `account`
   omitted above) — regenerate, never hand-edit. A `rate_limit` key identifies one client and endpoint
   bucket.
-- `workspace` is the only application table (`src/lib/db/schema.ts`):
+- `workspace` and `figure_preset` are the application tables (`src/lib/db/schema.ts`). `workspace`:
 
 | Column | Type | Constraints / notes |
 |---|---|---|
@@ -391,6 +409,23 @@ erDiagram
 
 Index: `(user_id, updated_at DESC)` for the dashboard listing.
 
+`figure_preset` — personal figure presets ("My presets", PROJECT F15; owner feature of 2026-11-27,
+ADR-062):
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| `id` | `uuid` | PK, `default gen_random_uuid()` |
+| `user_id` | `text` | NOT NULL, FK → `user.id` **ON DELETE CASCADE** |
+| `name` | `varchar(60)` | NOT NULL, trimmed, 1–60 chars, no control characters; check `figure_preset_name_not_blank` |
+| `data` | `jsonb` | NOT NULL, normalized `FigurePresetData` (§9.10), ≤ 16 KB serialized |
+| `data_version` | `integer` | NOT NULL, equals `data.version` (1; for later data migrations) |
+| `created_at` | `timestamptz(3)` | NOT NULL default `now()` |
+| `updated_at` | `timestamptz(3)` | NOT NULL default `now()`, moved strictly forward on rename |
+
+Index `figure_preset_user_updated_idx` `(user_id, updated_at DESC)` for the Mine list (newest
+first). No images are stored: previews are drawn from `data` in the browser. Migration:
+`drizzle/0001_figure_preset.sql`.
+
 **As implemented (M1):** `src/lib/db/schema.ts` defines `workspace` and re-exports the Better Auth
 tables generated by the Better Auth CLI 1.7.26 into `src/lib/db/auth-schema.ts`: `user`, `session`,
 `account`, `verification` and `rate_limit` (snake_case columns; the generated auth timestamps are
@@ -399,7 +434,7 @@ tables generated by the Better Auth CLI 1.7.26 into `src/lib/db/auth-schema.ts`:
 (millisecond precision) so `updated_at` round-trips exactly through JavaScript `Date`/ISO strings
 — required for the optimistic-concurrency check (§6.4). Index `workspace_user_updated_idx`; check
 constraint `workspace_name_not_blank` (`char_length(btrim(name)) > 0`). Initial migration:
-`drizzle/0000_init.sql`.
+`drizzle/0000_init.sql`; `figure_preset` came with `drizzle/0001_figure_preset.sql` (F15).
 
 ## 6. Database operation
 
@@ -495,6 +530,11 @@ return db.transaction(async (tx) => {
   would wait for itself). Tests: 5 concurrent creates at 4/5 → exactly one succeeds; 12 creates +
   3 duplicates at 1/5 → exactly four succeed (`src/server/workspaces.test.ts`); real-Postgres twin
   is S6's DEP-04.
+- **Personal figure presets** (F15, `src/server/figure-presets.ts`) use the same pattern: one
+  transaction locks the owner's `user` row (`… .for("update")`), counts the owner's `figure_preset`
+  rows, refuses at `getServerConfig().maxPresetsPerUser` (`MAX_PRESETS_PER_USER`, default 50) with
+  `409 PRESET_LIMIT_REACHED` (`details: { limit, count }`), then inserts. `GET /api/presets` returns
+  the limit. Test: 4 concurrent saves at 1/3 → exactly two succeed (`figure-presets.test.ts`).
 
 ### 6.4 Optimistic concurrency
 
@@ -1192,7 +1232,7 @@ Every preset must pass `clampPose` unchanged (unit test: preset values are alrea
 | `pose-analysis.ts` | Test/tuning-only analysis on the real engine (`forwardKinematics` + rigid-skinned mesh): floor contacts per body region from posed vertices, centre of mass from segment masses (Dempster/Winter) and its margin inside the support polygon, capsule self-intersection, surface landmarks. Places a preset exactly like the store's `applyPosePreset`. Never imported by the app at runtime |
 | `*.test.ts` | Contract (ids, names, categories, ROM no-op, symmetry, hips/grounded fields), plausibility of every pose on the default body (intended contacts, balance ≥ 1–3 cm, hand targets) and on all 9 bodies (allowed contacts, balance, no deep intersection), body presets vs PROJECT §8.1 measured on the built mesh (height ±2 %, heads ±0.2), IP denylist on all preset texts |
 
-Presets UI: `src/features/editor/components/presets/` — `PresetsPanel` (tabs Pose · Hands · Body; pose
+Presets UI: `src/features/editor/components/presets/` — `PresetsPanel` (tabs Pose · Hands · Body · Mine; pose
 tiles grouped by category; hand target radiogroup left/right/both; body tiles with `aria-pressed`;
 every button disabled when `canEditPose` is false; body tiles also disabled, with a hint to switch
 back to the mannequin, while the figure shows an imported model — `model` set, PROJECT §18, S8 — because body
@@ -1201,6 +1241,60 @@ presets only shape the procedural mannequin, whereas pose/hand presets drive the
 from the engine's FK — ¾-view stick figure, palm-side hand, same-scale body silhouette — cached per
 preset, no image assets) and `preset-preview.tsx` (renderer). Mounted at the bottom of the
 properties panel; test ids per TEST_PLAN §6.2. Preset screenshots: `docs/screenshots/presets/`.
+
+#### Personal figure presets — "My presets" (PROJECT F15, ADR-062) *(implemented — S5)*
+
+A signed-in user saves a figure as a personal preset and reuses it in any workspace, on any device.
+Document v1 (`src/lib/mannequin/presets/figure-preset.ts`, client-safe; the server validates with
+the same module):
+
+```ts
+interface FigurePresetData {
+  version: 1;                                   // bumped with a migration step when the format changes
+  body: {
+    presetId: string;                           // base body preset: keeps its face and defaults
+    proportions: BodyProportions;               // all PROPORTION_PARAMS keys, resolved and clamped
+    material: { style: MaterialStyle; color: string };
+  };
+  pose?: {                                      // the PosePreset fields, fingers included (includesHands)
+    pose: Pose;                                 // body + finger bones, ROM-clamped, sparse
+    hips: { orientation: [pitch, yaw, roll]; height?: number }; // relative to the heading; height × standing hips height
+    grounded: boolean;
+  };
+}
+```
+
+- Never stored: an imported model reference (files stay on the device), the figure's name, floor
+  position, heading (yaw is saved as 0), visibility and lock.
+- `parseFigurePresetData(input, { mode })` strips unknown keys, fills missing proportions from the
+  base preset and clamps them to `PROPORTION_PARAMS`, clamps the pose with `clampPose`, rounds, and
+  refuses structural errors and normalized documents over 16 KB (`MAX_FIGURE_PRESET_BYTES`). `write`
+  (API create) refuses unknown body presets; `read` (stored rows, apply) maps them to the default body
+  and keeps the saved proportions. `proportionOverridesOf` turns the full proportions back into sparse
+  overrides of the base preset (empty when nothing changed), `posePresetOfFigurePreset` into a
+  `PosePreset`. `figurePresetFromMannequin(m, { includePose, model })`
+  (`figure-preset-capture.ts`, needs the mesh model) captures a figure: grounded when its hips are
+  within 2 mm of the grounded height, otherwise `hips.height` = y ÷ standing hips height.
+- Store (S2's `editor-store.ts`, additive): `applyFigurePreset(id, data)` — one undo step through the
+  pose-lock guard; body (preset id, overrides, material) unless the figure shows an imported model,
+  then the pose exactly like `applyPosePreset` (shared `withPosePreset`: keeps x/z and heading,
+  grounds or lifts) or, for a body-only preset, the current clearance; returns
+  `"applied" | "pose-only" | "not-applicable" | "locked" | "invalid"`. `addFigureFromPreset(data,
+  name)` adds a selected figure named after the preset (unique, ≤ 40 characters) within the 8-figure
+  limit.
+- UI (`src/features/editor/components/presets/`): the **Mine** tab (`my-presets-tab.tsx`: rows with a
+  body silhouette plus a stick figure when posed, Apply, ⋯ menu Rename… / Delete… with confirmation,
+  count `n / limit`), **Save as my preset…** (`save-preset-dialog.tsx`: name, "Include pose and hands"
+  on by default; in the Mine tab and the figure panel), the **My presets** group of Add figure
+  (`add-figure-my-presets.tsx`), the guest prompt and previews (`my-presets-shared.tsx`). Keys
+  pressed in these dialogs and menus stop there (the editor's window shortcuts only know
+  store-driven dialogs).
+- Data flow (`my-presets-store.ts`, FT free-tier rules): no request when the editor loads; the list
+  (`GET /api/presets`) is fetched on first need — opening Mine, the save dialog or Add figure — and
+  kept in memory for the editor session; save, rename and delete are one request each (rename and
+  delete optimistic, rolled back on failure); presets are never saved automatically. Signed in = the
+  auth hint cookie (no request); a 401 or a missing hint shows "Sign in to save your own presets" with
+  sign-in/sign-up links back to the editor (`callbackUrl`), and signing out forgets the cache.
 
 ### 9.11 Imported models (VRM / GLB) — `src/lib/model-import/`, `src/features/editor/model-import/` *(S8, M5 — v1.1)*
 
@@ -1537,6 +1631,10 @@ workspaces that do not exist **or** belong to another user).
 | `DELETE /api/workspaces/:id` | — | `204` | 401, 404 |
 | `POST /api/workspaces/:id/duplicate` | `{ name? }` | `201 { workspace: WorkspaceSummary }` | 401, 404, 409 `WORKSPACE_LIMIT_REACHED` |
 | `GET /api/workspaces/:id/thumbnail?v=<updatedAt ms>` | — | `200` image bytes (`image/png`, `image/jpeg` or `image/webp`) | 401, 404 (also: no thumbnail) |
+| `GET /api/presets` | — | `200 { presets: FigurePreset[], limit: number }` (newest first) | 401 |
+| `POST /api/presets` | `{ name: string, data: FigurePresetData }` | `201 { preset: FigurePreset }` | 400, 401, **409 `PRESET_LIMIT_REACHED`**, 413 |
+| `PATCH /api/presets/:id` | `{ name: string }` (rename only) | `200 { preset: FigurePreset }` | 400, 401, 404, 413 |
+| `DELETE /api/presets/:id` | — | `204` | 401, 404 |
 
 - `WorkspaceSummary = { id, name, thumbnail, createdAt, updatedAt }`;
   `Workspace = WorkspaceSummary & { scene: SceneDocument }`. `thumbnail` is the **URL** of the preview
@@ -1545,7 +1643,7 @@ workspaces that do not exist **or** belong to another user).
   `data:` URL.
 - Error body: `{ "error": { "code": "WORKSPACE_LIMIT_REACHED", "message": "…", "details"?: {…} } }`.
   Codes: `UNAUTHORIZED`, `NOT_FOUND`, `VALIDATION_ERROR`, `PAYLOAD_TOO_LARGE`,
-  `WORKSPACE_LIMIT_REACHED`, `CONFLICT`, `INTERNAL`.
+  `WORKSPACE_LIMIT_REACHED`, `PRESET_LIMIT_REACHED`, `CONFLICT`, `INTERNAL`.
 - Better Auth endpoints live under `/api/auth/*` (library-defined).
 
 **As implemented (M2b, S3)** — `src/app/api/workspaces/**` → `src/server/http.ts` →
@@ -1609,6 +1707,26 @@ workspaces that do not exist **or** belong to another user).
   keepalive })` — failures are `WorkspaceApiError` (`code` incl. `NETWORK_ERROR`, `status`,
   `currentUpdatedAt` for conflicts, `limit` for the quota). Pre-check thumbnails with
   `checkThumbnailDataUrl` (ADR-021).
+
+**As implemented (F15, S5)** — personal figure presets: `src/app/api/presets/**` →
+`src/server/http.ts` → `src/server/figure-presets.ts`; contract `src/features/figure-presets/contract.ts`
+(`FigurePreset = { id, name, data, createdAt, updatedAt }`), browser client
+`src/features/figure-presets/api-client.ts` (`FigurePresetApiError`):
+- Same rules as the workspace routes: `withSession()` (401), `Content-Type: application/json` on
+  every `POST`/`PATCH` even without a body (else 400), `Cache-Control: private, no-store`,
+  `maxDuration = 10`, the same error body. Bodies are capped at **32 KB before parsing**
+  (`MAX_FIGURE_PRESET_REQUEST_BYTES`, twice the document limit) → `413` `field: "body"`.
+- Validation: names → `FigurePresetNameSchema` (same rules as workspace names); `data` →
+  `parseFigurePresetData(…, { mode: "write" })` (§9.10: unknown keys stripped, proportions and pose
+  clamped, unknown body preset → 400 `details.issues[].path` `data.body.presetId`, normalized
+  document > 16 KB → `413` `field: "data"`). `PATCH` renames only (other keys are ignored).
+- Ownership: another user's preset and a missing one get the identical `404` body
+  (`"Preset not found."`); ids that are not UUIDs → 404 without a query.
+- Reads re-run the validation in `read` mode, so old documents keep loading (an unknown body
+  preset falls back to the default body); a structurally broken row is skipped and logged as
+  `[presets] Stored preset <id> is unreadable: INVALID`.
+- Quota: §6.3 (`409 PRESET_LIMIT_REACHED`, `details: { limit, count }`). No preset thumbnails,
+  sharing, import or export on the server.
 
 ## 13. Security
 
@@ -1796,6 +1914,7 @@ Implementation notes (M1):
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | No | — | Enables GitHub sign-in (read at **build** time by the prerendered auth pages too — redeploy after changing) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | No | — | Enables Google sign-in (same as GitHub) |
 | `MAX_WORKSPACES_PER_USER` | No | `5` | Workspace quota (the sign-up page shows the build-time value) |
+| `MAX_PRESETS_PER_USER` | No | `50` | Personal figure preset quota ("My presets", F15) |
 | `DB_LOG_QUERIES` | No | — | `1` logs every query's SQL text (never parameters) as `[db] …` — counting queries per request locally (§6.5) |
 | `NEXT_DIST_DIR` | No (agents) | `.next` | Per-agent build directory so several dev servers can run in one folder |
 | `NEXT_TELEMETRY_DISABLED` | No | `1` (set by the npm scripts and `next.config.ts`) | Keeps Next.js telemetry off |
@@ -1910,3 +2029,4 @@ flowchart TB
 | 059 | **View lock** (owner request): `lock.view` (additive, default `false`) joins the scene locks; the master lock (`L`, toolbar button) = pose + lights + view, the lock menu and `V` toggle the view alone. Locked = no orbit/zoom/pan input (`enableRotate/Zoom/Pan`, not `enabled`), camera commands refused in the store, the angle on screen at lock time saved and held every frame | Artists draw from one fixed angle; an accidental orbit while sketching loses it. Refusing in the store (last line of defence) and disabling the input closes every path; holding the stored camera every frame (as a fixed point of OrbitControls' limits) keeps the view exact across damping tails, resizes and reloads. Locks stay a saved, non-undoable mode (ADR-034) | Accepted (S2; PROJECT F6 by the supervisor) |
 | 060 | **Framing and auto framing** (supervisor G2 review: "the default view (and Frame selection/view presets) should show the whole figure head-to-toe with a comfortable margin, including the floor contact/shadow … fit the figure's bounding box (respecting focal length)"): an exact fixed-direction frustum fit of point sets (`lib/framing.ts`) for the current lens and canvas aspect — figures + floor contact with an 8 % margin, bulbs 36 px inside the edges and clear of the camera views cluster; presets frame all visible figures, `F` the selection. A camera at the factory placement means "never moved": the editor frames the scene for the canvas and lens it is shown with and re-frames on resize / lens change, without saving, until the user moves the camera | A fixed default camera cannot fit every aspect ratio and focal length (and an older, closer default cropped the feet); saving the fitted view on open would create a camera-only change for every fresh workspace (autosave, COST-04) and pin one device's framing for all others. The placement doubles as the "auto" marker, so the document contract is unchanged | Accepted (S2) |
 | 061 | **Sculpted faces per body preset** (owner request 2026-11-27: "add a nose and eye sockets to the mannequin … also add lips; each existing model gets its own style of eye sockets, nose and mouth, for male and female models"): nine generic face styles as data (`mesh/face.ts`, `FACE_STYLE_BY_PRESET`), carved as a C1 relief on the egg head's front along +Z on a non-uniform mirror-symmetric 56 × 52 grid (`mesh/head.ts`, grid-derived normals); the figure-model key includes the face style; toon shading reads separate `toonNormal`s (egg + broad forms) plus a per-vertex `toonCavity` drawn in the shadow tone (lid creases, nostrils, lip line), and the outline skips face creases | Real geometry (not paint) is what makes a bulb cast form and cast shadows in the sockets and under the brow, nose and lips — the point of light study. A +Z heightfield cannot fold, keeps the head height (BODY-01 heads tall) and keeps rigid skinning (every face vertex on `head`); a feature-focused grid keeps the triangle increase at +14 % (one draw call per figure as before). Small relief breaks a two-tone terminator into specks and makes inverted-hull strokes flicker, so cel shading uses the smooth forms and the hull ignores creases that the cel shading smooths over; with only the smooth forms anime faces would nearly vanish in cel shading (supervisor review), so the few cavities an illustrator would draw (lash/lid line, nostrils, mouth line) are baked per vertex and always take the shadow tone. The preset → face mapping needs no scene-schema change; custom proportions keep their preset's face. Generic types only — no character likeness (ADR-011) | Accepted (S2; owner request via the supervisor) |
+| 062 | **"My presets" — personal figure presets per account** (owner request 2026-11-27: "when a user finishes shaping a figure, save that preset as their own to reuse in the future"; decisions by the supervisor): stored in a new `figure_preset` table (jsonb document `FigurePresetData` v1, ≤ 16 KB) owned by the user, up to 50 per user (`MAX_PRESETS_PER_USER`, same per-user row lock as workspaces, `409 PRESET_LIMIT_REACHED`); a preset = base body preset id + full proportions + material, optionally the pose and hands (PosePreset fields with `includesHands`); never imported models, names, placement, heading, visibility or locks; `GET/POST /api/presets`, `PATCH` (rename) / `DELETE /api/presets/:id` with the workspace routes' rules; validated on write, read and apply; fetched on first need and kept in memory, one request per save/rename/delete, never autosaved; guests get a sign-in prompt | In the account (not the browser), presets follow the user to every workspace and device, which is what "reuse in the future" asks for. Saving the base preset id keeps its face and defaults while the full proportions keep the shape even if preset values are tuned later (applied back as sparse overrides). A versioned, clamped, size-capped document keeps old presets loadable and the table small; the list costs one query per editor session only when needed (free tier: Vercel invocations, Neon egress), and previews are drawn from the data, so no images are stored. Sharing, import/export and server thumbnails are out of scope | Accepted (S5; owner request via the supervisor) |

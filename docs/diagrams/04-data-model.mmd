@@ -1,5 +1,6 @@
 erDiagram
   user ||--o{ workspace : "owns (max 5)"
+  user ||--o{ figure_preset : "owns (max 50)"
   user ||--o{ session : "signs in with"
   user ||--o{ account : "authenticates via"
   user {
@@ -20,6 +21,15 @@ erDiagram
     text thumbnail "data URL or null"
     timestamptz created_at "ms precision"
     timestamptz updated_at "concurrency token"
+  }
+  figure_preset {
+    uuid id PK
+    text user_id FK "on delete cascade"
+    varchar name "1-60 characters"
+    jsonb data "FigurePresetData, max 16 KB"
+    integer data_version
+    timestamptz created_at "ms precision"
+    timestamptz updated_at "ms precision"
   }
   session {
     text id PK
