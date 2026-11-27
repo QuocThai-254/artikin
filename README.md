@@ -9,7 +9,8 @@ to be hosted on Vercel.
 > **Status:** v1 is feature-complete — editor (with the pose, light and view lock), accounts, workspaces
 > and landing page are done; the release checks (gate G5) are green on the final tree — see
 > [docs/QA_REPORT.md](docs/QA_REPORT.md), which also lists the checks the owner runs after deploying.
-> Importing your own model (v1.1) has its own gate (G6). Not deployed yet.
+> Importing your own model (v1.1) has its own gate (G6). **Live at <https://artikin.vercel.app>**
+> (Vercel Hobby + Neon Free, Singapore) since 2026-11-27.
 
 ## Documentation
 
@@ -136,11 +137,12 @@ vercel.json       Vercel settings: functions in sin1 (Singapore)
 
 ## Free hosting (Vercel Hobby + Neon Free)
 
-Not deployed yet. These steps are for the **owner**, with **personal accounts** — coding agents never
-create accounts, sign in, connect services or deploy (AGENTS.md), so plans, limits and menu names below
-describe November 2026 and were not checked against the live sites. Compare them with the Vercel and
-Neon pricing pages and documentation before you start (if a menu name has changed, look for the bold
-term in the settings).
+**Deployed on 2026-11-27 at <https://artikin.vercel.app>** by following the steps below; menu names
+were checked during that deployment. The steps are for the **owner**, with **personal accounts** —
+coding agents never create accounts, sign in, connect services or deploy (AGENTS.md). Plans and
+limits describe November 2026: compare them with the Vercel and Neon pricing pages and documentation
+before you start (if a menu name has changed, look for the bold term in the settings, or type it
+into the dashboard's *Find* box).
 
 **Result:** the app at `https://<project>.vercel.app`, with its functions in Singapore (`sin1`, set
 in [`vercel.json`](vercel.json)) next to a Neon Postgres database in AWS Singapore
@@ -168,13 +170,16 @@ functions and use the database. Technical details: [docs/ARCHITECTURE.md §16](d
    dialog offers an environment-variable prefix, keep the default so the variable is named exactly
    `DATABASE_URL`, and leave per-preview database branches off. The integration adds `DATABASE_URL` —
    the **pooled** connection string (its host name contains `-pooler`), which Artikin expects — plus
-   other `PG*`/`POSTGRES_*` variables that Artikin ignores.
-4. **Cap the database compute:** open the database in the Neon console (*Open in Neon*) → *Branches*
-   → the production branch → **Compute → Edit**: autoscaling **min 0.25 CU, max 0.25–0.5 CU** (start
-   with 0.25; allow 0.5 only if pages feel slow) and keep **scale to zero** on. 100 CU-hours a month
+   other `PG*`/`POSTGRES_*`/`NEON_*` variables that Artikin ignores (leave them; the integration
+   manages them).
+4. **Cap the database compute:** open the database in the Neon console (*Open in Neon*) → **Postgres
+   database → Computes** → **Edit** on the production branch's compute: autoscaling **min 0.25 CU,
+   max 0.25–0.5 CU** (start with 0.25; allow 0.5 only if pages feel slow; if its size already reads
+   0.25 CU there is nothing to change) and keep **scale to zero** on. 100 CU-hours a month
    last 400 hours at 0.25 CU or 200 hours at 0.5 CU, and a month has 720 hours — the database must
    sleep whenever nobody uses the app. It wakes on the next request, which then takes a moment longer.
-5. **Set the environment variables** (*Project Settings → Environment Variables*, **Production**):
+5. **Set the environment variables** (project sidebar → **Environment Variables** → *Add Environment
+   Variable*, environment **Production**):
 
    | Variable | Value |
    |---|---|
@@ -190,7 +195,10 @@ functions and use the database. Technical details: [docs/ARCHITECTURE.md §16](d
    `[db:migrate] Migrations applied.` — the first run creates every table in Neon; later runs apply
    only new migrations from `drizzle/` — followed by the Next.js build. Then open
    `https://<project>.vercel.app/api/auth/ok` (answers `{"ok":true}`), sign up and create a workspace.
-7. **Optional custom domain:** *Project Settings → Domains*; then change `BETTER_AUTH_URL` (and the
+   Always use the production domain (the *Visit* button on the project *Overview*): the generated
+   deployment URLs and branch aliases are behind Vercel Authentication, and Better Auth accepts only
+   the `BETTER_AUTH_URL` origin (other origins get 403).
+7. **Optional custom domain:** project sidebar → **Domains**; then change `BETTER_AUTH_URL` (and the
    OAuth callback URLs) to the new address and redeploy.
 
 ### Checks after deploying (owner)
@@ -225,7 +233,8 @@ deployment, a real database or real hardware ([docs/QA_REPORT.md §8](docs/QA_RE
 Pushing a branch other than `main` (or opening a pull request) creates a *Preview* deployment. Its
 build stops at `db:migrate`, because the database is connected to Production only — on purpose: a
 preview must never migrate the production database. Work on `main`, or turn preview builds off
-(*Project Settings → Git → **Ignored Build Step***, behavior "Only build production"), which also
+(project *Settings* → **Ignored Build Step**, or type it into the dashboard's *Find* box; behavior
+"Only build production"), which also
 saves build time. Previews that need sign-in would need their own Neon branch (it spends the same
 compute hours) and their URLs in `BETTER_AUTH_TRUSTED_ORIGINS`.
 

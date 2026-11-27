@@ -170,6 +170,24 @@ Step by step in the README, section "Checks after deploying (owner)":
   2 bulbs ≥ 30 fps) — the browser's frame-rendering stats while orbiting for 10 s.
 - DEP-01 / DEP-04: the first Vercel deployment runs `npm run vercel-build` with the real `DATABASE_URL`
   (build log `[db:migrate] Migrations applied.`); LIM-03 against a local server on a throwaway Neon branch.
+  **✅ DEP-01 / DEP-04, 2026-11-27:** the production deployment is *Ready* (build 1 min 16 s) at
+  <https://artikin.vercel.app>, and the tables exist (external check below). LIM-03 on a Neon
+  branch remains optional.
+- **External check of the live site** (supervisor, 2026-11-27, no account created):
+  - `/`, `/editor` and `/sign-in` answer 200 from the CDN (`x-vercel-cache: PRERENDER`, edge `sin1`).
+  - Without a session, `/workspaces` and `/editor/<id>` redirect (307) to `/sign-in?callbackUrl=…`.
+  - `/api/auth/ok` answers `{"ok":true}`; functions run in `sin1` (`x-vercel-id: sin1::sin1::…`).
+  - `/api/workspaces` without a session answers 401 `UNAUTHORIZED`.
+  - A sign-in with an unknown address answers 401 `INVALID_EMAIL_OR_PASSWORD` and sets no cookie.
+    That request reads the `user` table, so the migrations ran. The same request from a foreign
+    `Origin` answers 403 `INVALID_ORIGIN`.
+  - `/dev/model-import` answers 404.
+  - Security headers: `Strict-Transport-Security: max-age=63072000; includeSubDomains`,
+    `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+    `Referrer-Policy: strict-origin-when-cross-origin`.
+  - The canonical URL, `og:url`, `sitemap.xml` and `robots.txt` use `https://artikin.vercel.app`.
+  - The branch alias and generated deployment URLs redirect (302) to Vercel's login (Vercel
+    Authentication), so the public only reaches the production domain.
 - SEC-02: on the deployed https site the session cookie is `Secure` with the `__Secure-` prefix.
 - COMP-01: current Firefox and Safari (Chromium and its WebGL fallback are automated).
 - OAuth (if enabled): sign in with GitHub/Google (accounts are never linked automatically, ADR-041).
@@ -184,7 +202,8 @@ No open finding. Watch items for the owner:
   pauses just long enough for one save per 30-s cycle — the save policy's designed maximum.
 - S8's development harness `/dev/model-import` appears in the route table but answers 404 in
   production.
-- The owner-run checks of §8.
+- The owner-run checks of §8 that still need a real account, browser or GPU: SEC-02 (cookie flags
+  after a sign-in), PERF-01/02, COMP-01, OAuth if enabled, LIM-03 on a Neon branch (optional).
 
 ## 10. G6 — import your own model (v1.1, separate from G5)
 

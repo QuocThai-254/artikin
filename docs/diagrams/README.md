@@ -18,7 +18,7 @@ source of truth (GitHub also renders those diagrams inline). Each diagram has it
 | 08 | Editor interaction states | [9.5 Interaction model](../ARCHITECTURE.md#95-interaction-model-implemented) | [PNG](08-interaction-states.png) · [SVG](08-interaction-states.svg) · [Mermaid](08-interaction-states.mmd) |
 | 09 | Importing your own model | [9.11 Imported models (VRM / GLB)](../ARCHITECTURE.md#911-imported-models-vrm--glb--srclibmodel-import-srcfeatureseditormodel-import-s8-m5--v11) | [PNG](09-model-import.png) · [SVG](09-model-import.svg) · [Mermaid](09-model-import.mmd) |
 | 10 | Cloud autosave and conflicts | [11. Persistence & sync](../ARCHITECTURE.md#11-persistence--sync--srcfeatureseditorpersistence-implemented--m3a-s4) | [PNG](10-cloud-autosave.png) · [SVG](10-cloud-autosave.svg) · [Mermaid](10-cloud-autosave.mmd) |
-| 11 | Build and deployment | [16.2 Vercel deployment (owner, personal accounts — not done yet)](../ARCHITECTURE.md#162-vercel-deployment-owner-personal-accounts--not-done-yet) | [PNG](11-deployment.png) · [SVG](11-deployment.svg) · [Mermaid](11-deployment.mmd) |
+| 11 | Build and deployment | [16.2 Vercel deployment (owner, personal accounts)](../ARCHITECTURE.md#162-vercel-deployment-owner-personal-accounts) | [PNG](11-deployment.png) · [SVG](11-deployment.svg) · [Mermaid](11-deployment.mmd) |
 
 To update the files, edit the diagram in ARCHITECTURE.md, then run the generator. Mermaid is not a
 project dependency, so install it once in any folder outside the project:

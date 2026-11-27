@@ -6,8 +6,8 @@
 
 | | |
 |---|---|
-| Last updated | 2026-11-27 — Supervisor (architecture diagrams redrawn for the final implementation: §1, §3, §4, §5, §7, §9, §9.11, §11, §16.2) |
-| Implementation status | **v1 complete** — gates G1–G5 accepted; **v1.1 "import your own model"** — gate G6 accepted. All sections describe the implemented system |
+| Last updated | 2026-11-27 — Supervisor (architecture diagrams redrawn for the final implementation: §1, §3, §4, §5, §7, §9, §9.11, §11, §16.2; §16.2 live deployment) |
+| Implementation status | **v1 complete** — gates G1–G5 accepted; **v1.1 "import your own model"** — gate G6 accepted. All sections describe the implemented system. **Live at <https://artikin.vercel.app>** since 2026-11-27 (§16.2) |
 | Diagrams as files | PNG, SVG and Mermaid source of every diagram below in [diagrams/](./diagrams/README.md) — regenerate with `scripts/render-diagrams.mjs` after changing a diagram here |
 
 ---
@@ -1772,17 +1772,25 @@ Implementation notes (M1):
 
 The template with comments is `.env.example`; `.env.local` holds local secrets (git-ignored).
 
-### 16.2 Vercel deployment (owner, personal accounts — not done yet)
+### 16.2 Vercel deployment (owner, personal accounts)
+
+**Live since 2026-11-27: <https://artikin.vercel.app>.** It runs as a Vercel Hobby project with its
+functions in `sin1`. The database is a Neon Free project in `aws-ap-southeast-1`, created through the
+Vercel-managed integration for the Production environment only, with a 0.25 CU compute and scale to
+zero. Every push to `main` builds and deploys production. The generated deployment URLs and branch
+aliases are behind Vercel Authentication, so the public uses only the production domain. That
+domain is also the only origin Better Auth accepts (`BETTER_AUTH_URL`).
 
 Step-by-step guide with the free-plan limits, what happens when one runs out and where to watch
 usage: README → "Free hosting (Vercel Hobby + Neon Free)". In short:
 
-1. Owner pushes the repository to their personal GitHub account (git is already initialized).
+1. The repository is on the owner's personal GitHub account; every push to `main` deploys.
 2. Import the repository in Vercel (**Hobby**; framework preset Next.js). Build command
    `npm run vercel-build` (typecheck → migrations → `next build`); Node.js 22+.
 3. Add **Neon** from the Vercel Marketplace (Free plan, region `aws-ap-southeast-1`), connected to
-   **Production** only — it injects the pooled `DATABASE_URL`. Neon autoscaling max 0.25–0.5 CU,
-   scale to zero on (100 CU-hours a month ≈ 400 h awake at 0.25 CU).
+   **Production** only — it injects the pooled `DATABASE_URL`. Neon autoscaling max 0.25–0.5 CU
+   (Neon console → Postgres database → Computes → Edit), scale to zero on (100 CU-hours a month ≈
+   400 h awake at 0.25 CU).
 4. Set `BETTER_AUTH_SECRET` (a new random value) and `BETTER_AUTH_URL=https://<domain>`. Optional
    OAuth: callback URLs `https://<domain>/api/auth/callback/github` and `/google`.
 5. Already in the repository: `vercel.json` pins functions to `sin1` next to the database,
